@@ -193,3 +193,64 @@ df['patient'] = np.where(df.dataset == 'eyepacs', df.shard + '_' + df.stem.str.s
 df['keep'] = True
 
 
+# %% [markdown]
+# ## Label noise: APTOS near-duplicates
+# APTOS contains duplicate images, some of them graded differently. Duplicates are found by perceptual hash (256-bit dHash) and grouped into connected components.
+# A group whose grades **conflict** is dropped, because its label is unreliable. A group whose grades agree keeps one copy, so duplicates can't leak across the val split or get extra weight.
+
+# %%
+def dup_groups(hashes, max_bits=DUP_BITS):
+    b = np.unpackbits(np.stack([np.frombuffer(bytes.fromhex(h), np.uint8) for h in hashes]), axis=1).astype(np.float32)
+    dist = b @ (1 - b).T
+    i, j = np.nonzero(np.triu(dist + dist.T <= max_bits, 1))
+    return connected_components(coo_matrix((np.ones(len(i)), (i, j)), shape=(len(b),) * 2), directed=False)[1]
+
+
+a = df.dataset == 'aptos'
+if a.any():
+    df.loc[a, 'dup_group'] = dup_groups(df.loc[a, 'dhash'].tolist())
+    g = df[a].groupby('dup_group').grade
+    conflict = g.transform('nunique') > 1
+    df.loc[a, 'keep'] = ~conflict & ~df[a].duplicated('dup_group')
+    df.loc[a, 'patient'] = 'aptos_g' + df.loc[a, 'dup_group'].astype(int).astype(str)
+    sizes = g.transform('size')
+    print(f'APTOS: {int((sizes > 1).sum())} images in duplicate groups; '
+          f'{int(conflict.sum())} dropped for conflicting grades; {int((~df.loc[a, "keep"]).sum())} dropped in total')
+
+# %% [markdown]
+# ## Patient-grouped stratified validation split
+# Stratification is by dataset × grade, so val has the natural class mix of both sources. That matters because the decision thresholds are tuned on val.
+
+# %%
+tr = df[(df.split == 'train') & df.keep]
+y = tr.dataset.map({'eyepacs': 0, 'aptos': 5}) + tr.grade
+_, val_idx = next(StratifiedGroupKFold(VAL_FOLDS, shuffle=True, random_state=42).split(tr, y, tr.patient))
+df.loc[tr.index[val_idx], 'split'] = 'val'
+
+df.drop(columns='key').to_csv(OUT / 'labels.csv', index=False)
+print(pd.crosstab([df.split, df.dataset], df.grade, margins=True))
+print('dropped:', (~df.keep).sum())
+
+# %% [markdown]
+# ### Sanity check: a few stored images and duplicate pairs
+
+# %%
+import matplotlib.pyplot as plt
+
+def show(shard_stems, title):
+    fig, ax = plt.subplots(1, len(shard_stems), figsize=(3 * len(shard_stems), 3))
+    for a_, (shard, stem, g) in zip(np.atleast_1d(ax), shard_stems):
+        with zipfile.ZipFile(OUT / f'{shard}.zip') as z:
+            a_.imshow(cv2.imdecode(np.frombuffer(z.read(f'{stem}.jpg'), np.uint8), cv2.IMREAD_COLOR)[..., ::-1])
+        a_.set_title(f'{stem[:14]} g={g}', fontsize=8)
+        a_.axis('off')
+    fig.suptitle(title)
+    plt.show()
+
+ex = df[df.keep].groupby('grade').head(1)
+show(list(zip(ex.shard, ex.stem, ex.grade)), 'one image per grade')
+if a.any():
+    d = df[a]
+    dup = d[d.groupby('dup_group').grade.transform('size') > 1].sort_values('dup_group').head(6)
+    if len(dup):
+        show(list(zip(dup.shard, dup.stem, dup.grade)), 'APTOS duplicate groups (adjacent = same group)')
