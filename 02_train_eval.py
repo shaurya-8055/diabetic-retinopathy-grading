@@ -124,3 +124,54 @@ def loader(d, train):
                                        pin_memory=AMP, drop_last=train, persistent_workers=WORKERS > 0)
 
 
+# %%
+def make_model():
+    kw = dict(pretrained=not SMOKE, num_classes=4)
+    try:
+        m = timm.create_model(MODEL, img_size=IMG, **kw)  # ViT/Swin: resample position embeddings to IMG
+    except TypeError:
+        m = timm.create_model(MODEL, **kw)  # CNNs accept any size
+    m.set_grad_checkpointing(GRAD_CKPT)
+    return m.to(DEV)
+
+
+model = make_model()
+MEAN = torch.tensor(model.pretrained_cfg['mean'], device=DEV).view(1, 3, 1, 1) * 255
+STD = torch.tensor(model.pretrained_cfg['std'], device=DEV).view(1, 3, 1, 1) * 255
+net = nn.DataParallel(model) if torch.cuda.device_count() > 1 else model
+
+
+def norm(x):
+    return (x.to(DEV, non_blocking=True).float() - MEAN) / STD
+
+
+def ordinal_targets(y):  # grade -> [y>0, y>1, y>2, y>3], smoothed towards 0.5
+    return (y[:, None] > torch.arange(4, device=y.device)).float() * (1 - SMOOTH) + SMOOTH / 2
+
+
+def expected_grade(logits):  # E[grade] = sum_k P(grade > k), continuous in [0, 4]
+    return torch.sigmoid(logits.float()).sum(1)
+
+
+def qwk(y, p):
+    return cohen_kappa_score(y, p, weights='quadratic')
+
+
+def to_grade(s, thr=(0.5, 1.5, 2.5, 3.5)):
+    return np.digitize(s, thr)
+
+
+@torch.no_grad()
+def predict(d, tta=N_TTA):
+    """Returns (mean, std) of the expected grade over TTA views."""
+    net.eval()
+    out = []
+    for x, _ in loader(d, train=False):
+        x = norm(x)
+        views = [x, x.flip(3), x.flip(2), x.flip((2, 3))][:tta]
+        with torch.autocast(DEV, dtype=torch.float16, enabled=AMP):
+            out.append(torch.stack([expected_grade(net(v)) for v in views], 1).cpu())
+    s = torch.cat(out).numpy()
+    return s.mean(1), s.std(1)
+
+
