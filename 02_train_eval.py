@@ -175,3 +175,51 @@ def predict(d, tta=N_TTA):
     return s.mean(1), s.std(1)
 
 
+# %% [markdown]
+# ## Train
+
+# %%
+def train():
+    head = list(model.get_classifier().parameters())
+    head_ids = {id(p) for p in head}
+    body = [p for p in model.parameters() if id(p) not in head_ids]
+    opt = torch.optim.AdamW([{'params': body, 'lr': LR}, {'params': head, 'lr': LR * 10}], weight_decay=0.05)
+    dl = loader(splits['train'], train=True)
+    sched = torch.optim.lr_scheduler.OneCycleLR(opt, [LR, LR * 10], total_steps=EPOCHS * len(dl), pct_start=0.1)
+    scaler = torch.amp.GradScaler(enabled=AMP)
+    best, t0, hist = -1.0, time.time(), []
+    for ep in range(EPOCHS):
+        net.train()
+        te, tot = time.time(), 0.0
+        for i, (x, y) in enumerate(dl):
+            with torch.autocast(DEV, dtype=torch.float16, enabled=AMP):
+                logits = net(norm(x))
+            loss = F.binary_cross_entropy_with_logits(logits.float(), ordinal_targets(y.to(DEV)))
+            opt.zero_grad(set_to_none=True)
+            scaler.scale(loss).backward()
+            scaler.unscale_(opt)
+            nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            scaler.step(opt)
+            scaler.update()
+            sched.step()
+            tot += loss.item()
+            if i % 200 == 0:
+                print(f'ep {ep} it {i}/{len(dl)} loss {tot / (i + 1):.4f} {(i + 1) * BS / (time.time() - te):.1f} img/s')
+        s, _ = predict(splits['val'], tta=1)
+        k = qwk(splits['val'].grade, to_grade(s))
+        hist.append({'epoch': ep, 'loss': tot / len(dl), 'val_qwk': k, 'min': (time.time() - t0) / 60})
+        print(hist[-1])
+        if k > best:
+            best = k
+            torch.save(model.state_dict(), WORK / 'model.pt')
+        if (time.time() - t0) * (ep + 2) / (ep + 1) > TIME_BUDGET_H * 3600:
+            print('time budget reached, stopping')
+            break
+    pd.DataFrame(hist).to_csv(WORK / 'history.csv', index=False)
+
+
+if CKPT is None:
+    train()
+model.load_state_dict(torch.load(CKPT or WORK / 'model.pt', map_location=DEV))
+
+
