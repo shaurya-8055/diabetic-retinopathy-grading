@@ -223,3 +223,81 @@ if CKPT is None:
 model.load_state_dict(torch.load(CKPT or WORK / 'model.pt', map_location=DEV))
 
 
+# %% [markdown]
+# ## Evaluation
+# Grade cut-offs and the uncertainty threshold are fitted on **val only** and then frozen for the internal test and the external Messidor-2 set.
+# Every metric gets a 95 % bootstrap CI. Referable DR (rDR) means grade ≥ 2 (moderate NPDR or worse). Vision-threatening DR (VTDR) means grade ≥ 3.
+
+# %%
+def fit_thresholds(y, s):  # coordinate ascent on QWK (the APTOS "OptimizedRounder" idea)
+    thr = [0.5, 1.5, 2.5, 3.5]
+    for _ in range(3):
+        for k in range(4):
+            lo, hi = (thr[k - 1] if k else 0.0), (thr[k + 1] if k < 3 else 4.0)
+            thr[k] = max(np.linspace(lo, hi, 41)[1:-1], key=lambda t: qwk(y, to_grade(s, thr[:k] + [t] + thr[k + 1:])))
+    return thr
+
+
+def binary(y, p, s, cut):
+    yt, pt = y >= cut, p >= cut
+    auc = roc_auc_score(yt, s) if 0 < yt.sum() < len(yt) else np.nan
+    return pt[yt].mean() if yt.any() else np.nan, (~pt[~yt]).mean() if (~yt).any() else np.nan, auc
+
+
+def metrics(y, p, s):
+    r = binary(y, p, s, 2)
+    v = binary(y, p, s, 3)
+    return {'qwk': qwk(y, p), 'acc': (y == p).mean(), 'rdr_sens': r[0], 'rdr_spec': r[1], 'rdr_auc': r[2],
+            'vtdr_sens': v[0], 'vtdr_spec': v[1], 'vtdr_auc': v[2]}
+
+
+def report(name, d, s, sd, thr, unc):
+    y, p = d.grade.values, to_grade(s, thr)
+    rng = np.random.default_rng(0)
+    boot = pd.DataFrame([metrics(y[i], p[i], s[i]) for i in rng.integers(0, len(y), (500, len(y)))])
+    m = metrics(y, p, s)
+    res = {k: {'value': v, 'ci95': list(boot[k].quantile([0.025, 0.975]))} for k, v in m.items()}
+    # Screening decisions are per patient: refer if either eye is referable
+    pat = pd.DataFrame({'pt': d.patient, 'y': y, 'p': p}).groupby('pt').max()
+    res['patient_rdr_sens'] = float((pat.p[pat.y >= 2] >= 2).mean())
+    res['patient_rdr_spec'] = float((pat.p[pat.y < 2] < 2).mean())
+    flagged = sd > unc
+    res['uncertain_frac'] = float(flagged.mean())
+    res['qwk_confident_only'] = qwk(y[~flagged], p[~flagged]) if (~flagged).sum() > 1 else np.nan
+
+    print(f'\n===== {name}  (n={len(y)}) =====')
+    for k, v in res.items():
+        print(f'{k:20s}', f"{v['value']:.3f}  [{v['ci95'][0]:.3f}, {v['ci95'][1]:.3f}]" if isinstance(v, dict) else f'{v:.3f}')
+    print(classification_report(y, p, labels=range(5), digits=3, zero_division=0,
+                                target_names=['0 none', '1 mild', '2 moderate', '3 severe', '4 PDR']))
+    print('true vs predicted grade distribution (bias check):')
+    print(pd.DataFrame({'true': np.bincount(y, minlength=5), 'pred': np.bincount(p, minlength=5)}).T)
+    cm = confusion_matrix(y, p, labels=range(5))
+    fig, ax = plt.subplots(1, 2, figsize=(11, 4.5))
+    ConfusionMatrixDisplay(cm).plot(ax=ax[0], colorbar=False, values_format='d')
+    ConfusionMatrixDisplay(cm / cm.sum(1, keepdims=True).clip(1)).plot(ax=ax[1], colorbar=False, values_format='.2f')
+    ax[0].set_title(f'{name}: counts')
+    ax[1].set_title(f'{name}: row-normalised (per-grade recall)')
+    fig.savefig(WORK / f'cm_{name}.png', dpi=120, bbox_inches='tight')
+    plt.show()
+    d.assign(score=s, score_sd=sd, pred=p).to_csv(WORK / f'pred_{name}.csv', index=False)
+    return res
+
+
+val_s, val_sd = predict(splits['val'])
+THR = fit_thresholds(splits['val'].grade.values, val_s)
+UNC = float(np.quantile(val_sd, 0.95))  # top 5 % most TTA-unstable images go to human review
+print('thresholds', np.round(THR, 3), 'uncertainty cut-off', round(UNC, 3))
+
+results = {'config': dict(model=MODEL, img=IMG, preproc=PREPROC, epochs=EPOCHS, alpha=SAMPLE_ALPHA, smooth=SMOOTH,
+                          tta=N_TTA, thresholds=THR, uncertainty_sd=UNC)}
+results['val'] = report('val', splits['val'], val_s, val_sd, THR, UNC)
+for src, d in splits['val'].groupby('dataset'):  # bias check across sources
+    print(f'val QWK on {src}: {qwk(d.grade, to_grade(val_s[d.index], THR)):.3f}  (n={len(d)})')
+for name in ('test', 'external'):
+    if name in splits:
+        s, sd = predict(splits[name])
+        results[name] = report(name, splits[name], s, sd, THR, UNC)
+json.dump(results, open(WORK / 'metrics.json', 'w'), indent=1, default=float)
+
+
