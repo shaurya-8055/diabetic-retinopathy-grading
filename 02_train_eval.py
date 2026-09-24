@@ -301,3 +301,90 @@ for name in ('test', 'external'):
 json.dump(results, open(WORK / 'metrics.json', 'w'), indent=1, default=float)
 
 
+# %% [markdown]
+# ## Screening tool
+# `screen(paths, patients)` takes **raw** fundus photographs, as a screening camp would capture them, and returns one row per image.
+# Each row has the grade, the continuous score, a TTA-uncertainty flag and a recommendation. With `patients=` it also returns the patient-level decision, taken from the worse eye.
+# It reuses the trained network and the frozen val thresholds.
+# The crop below is copied from `01_preprocess.crop_fundus`; keep the two in sync.
+
+# %%
+from PIL import Image
+
+GRADE_NAMES = ['No DR', 'Mild NPDR', 'Moderate NPDR', 'Severe NPDR', 'Proliferative DR']
+
+
+def crop_fundus(img, size=768):  # same as 01_preprocess.crop_fundus
+    mask = img.max(2) > 15
+    rows, cols = np.flatnonzero(mask.mean(1) > 0.02), np.flatnonzero(mask.mean(0) > 0.02)
+    if len(rows) < 32 or len(cols) < 32:
+        return None
+    img = img[rows[0]:rows[-1] + 1, cols[0]:cols[-1] + 1]
+    h, w = img.shape[:2]
+    d = max(h, w)
+    sq = np.zeros((d, d, 3), np.uint8)
+    sq[(d - h) // 2:(d - h) // 2 + h, (d - w) // 2:(d - w) // 2 + w] = img
+    return cv2.resize(sq, (size, size), interpolation=cv2.INTER_AREA)
+
+
+def recommend(grade, uncertain):
+    if grade is None:
+        return 'Ungradable: retake photo'
+    if uncertain:
+        return 'Send to human grader'
+    return ['Rescreen in 12 months', 'Rescreen in 6-12 months', 'Refer to ophthalmologist',
+            'Urgent referral', 'Urgent referral'][grade]
+
+
+@torch.no_grad()
+def screen(paths, patients=None):
+    net.eval()
+    rows = []
+    for path in paths:
+        im = Image.open(path)
+        im.draft('RGB', (768, 768))
+        img = crop_fundus(np.asarray(im.convert('RGB')))
+        if img is None:
+            rows.append({'file': str(path), 'grade': None, 'recommendation': recommend(None, False)})
+            continue
+        img = enhance(cv2.resize(img, (IMG, IMG), interpolation=cv2.INTER_AREA))
+        x = norm(torch.from_numpy(img).permute(2, 0, 1)[None])
+        with torch.autocast(DEV, dtype=torch.float16, enabled=AMP):
+            s = torch.stack([expected_grade(net(v)) for v in [x, x.flip(3), x.flip(2), x.flip((2, 3))][:N_TTA]]).cpu().numpy()
+        g = int(to_grade(s.mean(), THR))
+        unc = bool(s.std() > UNC)
+        rows.append({'file': str(path), 'grade': g, 'grade_name': GRADE_NAMES[g], 'score': round(float(s.mean()), 3),
+                     'tta_sd': round(float(s.std()), 3), 'referable': g >= 2, 'uncertain': unc,
+                     'recommendation': recommend(g, unc)})
+    out = pd.DataFrame(rows)
+    if patients is not None:
+        out['patient'] = list(patients)
+        worst = out.groupby('patient').grade.transform('max')
+        out['patient_recommendation'] = [recommend(None if pd.isna(w) else int(w), False) for w in worst]
+    return out
+
+
+# Demo on a few raw Messidor-2 photographs (any folder of fundus images works)
+raw = sorted(glob.glob(str(Path(os.environ.get('DR_INPUT', '/kaggle/input')) / '**/messidor-2/images/*'), recursive=True))[:8]
+if raw:
+    print(screen(raw).to_string())
+
+# %% [markdown]
+# ## Clinical limitations
+# Fill the bracketed numbers in from `metrics.json` after the run.
+#
+# 1. **Research prototype, not a medical device.** It is not validated prospectively and has no regulatory clearance (FDA/CE/CDSCO). For comparison, IDx-DR, the first FDA-cleared autonomous DR system, was approved on a prospective trial with pre-registered endpoints.
+#    The output is a triage aid that prioritises human grading. It is not a diagnosis.
+# 2. **Label quality.** EyePACS grades come from a single grader per image and are known to be noisy (Krause et al. 2018). Mild DR (grade 1) is the least reliable class for both humans and models.
+#    Expect the lowest per-grade recall there; see the confusion matrices.
+# 3. **Domain shift.** Training data comes from US primary-care clinics (EyePACS) and India (APTOS, Aravind). Messidor-2 is from France.
+#    Performance on Messidor-2 [QWK …, rDR sens/spec …] is the best available estimate for an unseen site, but a new camera, population or operator can still degrade results.
+#    Before deployment, validate on local images from the actual camp cameras, which are often handheld and non-mydriatic.
+# 4. **No image-quality model.** The tool only rejects photos in which no fundus disc can be found.
+#    Blurred, dark or poorly centred images still get a grade. Real deployments reject a large share of field images as ungradable (Beede et al. 2020), so add a gradeability check and a human fallback.
+# 5. **Grades only DR severity.** It does not detect diabetic macular oedema, which can be vision-threatening at any DR grade.
+#    It also misses glaucoma, AMD, vein occlusions and other incidental findings, so a "No DR" result is not a normal eye exam.
+# 6. **Single 45° field vs. ETDRS 7-field.** Peripheral lesions outside the photographed field are invisible to the model.
+# 7. **Operating point.** Grade cut-offs were tuned for QWK on the internal val set. A screening programme should instead fix the rDR operating point to a target sensitivity (e.g. ≥ 85-90 %), accept the specificity that follows, and re-check it on local data.
+# 8. **Uncertainty flag.** The TTA disagreement flag catches some unstable predictions, but it is not calibrated. Confidently wrong predictions still happen.
+# 9. **Fairness is unverified.** None of the datasets ship age, sex or ethnicity metadata, so subgroup performance cannot be audited. Per-grade recall and per-source QWK are the only bias checks performed.
