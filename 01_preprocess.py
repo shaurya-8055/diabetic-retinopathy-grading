@@ -46,19 +46,20 @@ VAL_FOLDS = 10    # val = 1/VAL_FOLDS of the labelled training pool
 EXTS = {'.jpeg', '.jpg', '.png', '.tif', '.tiff'}
 
 # Image source per shard: a directory, a .zip, or the first part (.001) of a split zip.
+# Paths follow Kaggle's current mount layout: /kaggle/input/{competitions,datasets/<owner>}/<slug>.
 # If reading the original split zips fails, point the eyepacs entries at
 # INPUT/'resized-2015-2019-blindness-detection-images/resized train 15' (and 'resized test 15'). Those images are already ~1024 px.
 SRC = {
-    'eyepacs_train': INPUT / 'diabetic-retinopathy-detection/train.zip.001',
-    'eyepacs_test': INPUT / 'diabetic-retinopathy-detection/test.zip.001',
-    'aptos': INPUT / 'aptos2019-blindness-detection/train_images',
-    'messidor2': INPUT / 'messidor2/messidor-2/images',
+    'eyepacs_train': INPUT / 'competitions/diabetic-retinopathy-detection/train.zip.001',
+    'eyepacs_test': INPUT / 'competitions/diabetic-retinopathy-detection/test.zip.001',
+    'aptos': INPUT / 'competitions/aptos2019-blindness-detection/train_images',
+    'messidor2': INPUT / 'datasets/xyaustin/messidor2/messidor-2/images',
 }
 LABELS = {
-    'eyepacs_train': INPUT / 'diabetic-retinopathy-detection/trainLabels.csv.zip',
-    'eyepacs_test': INPUT / 'resized-2015-2019-blindness-detection-images/labels/testLabels15.csv',
-    'aptos': INPUT / 'aptos2019-blindness-detection/train.csv',
-    'messidor2': INPUT / 'messidor2-dr-grades/messidor_data.csv',
+    'eyepacs_train': INPUT / 'competitions/diabetic-retinopathy-detection/trainLabels.csv.zip',
+    'eyepacs_test': INPUT / 'datasets/benjaminwarner/resized-2015-2019-blindness-detection-images/labels/testLabels15.csv',
+    'aptos': INPUT / 'competitions/aptos2019-blindness-detection/train.csv',
+    'messidor2': INPUT / 'datasets/google-brain/messidor2-dr-grades/messidor_data.csv',
 }
 SPLIT = {'eyepacs_train': 'train', 'aptos': 'train', 'eyepacs_test': 'test', 'messidor2': 'external'}
 OUT.mkdir(parents=True, exist_ok=True)
