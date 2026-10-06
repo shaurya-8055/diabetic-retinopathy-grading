@@ -38,8 +38,8 @@ SMOKE = bool(os.environ.get('DR_SMOKE'))  # tiny CPU run that only exercises the
 DATA = Path(os.environ.get('DR_DATA') or Path(sorted(glob.glob('/kaggle/input/**/labels.csv', recursive=True))[0]).parent)
 WORK = Path(os.environ.get('DR_WORK', '/kaggle/working'))
 
-MODEL = 'vit_base_patch16_384.augreg_in21k_ft_in1k'  # CNN baseline: 'tf_efficientnet_b4.ns_jft_in1k' with LR = 2e-4
-IMG = 512             # input resolution. Microaneurysms are ~2-4 px here; avoid going below 448.
+MODEL = 'vit_base_patch16_384.augreg_in21k_ft_in1k'  # CNN: 'resnet50.a1_in1k' with LR = 1e-4 (Huang et al. 2021 reference)
+IMG = 512            # input resolution. Microaneurysms are ~2-4 px here; avoid going below 448.
 PREPROC = 'ben'       # 'ben' (Graham 2015) | 'clahe' | 'none'
 EPOCHS, BS, LR = 10, 16, 5e-5  # LR applies to the backbone; the head gets 10x
 SAMPLE_ALPHA = 0.5    # sampling weight ∝ count^-alpha: 0 = natural distribution, 1 = fully balanced
