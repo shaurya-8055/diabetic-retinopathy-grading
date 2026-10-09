@@ -28,6 +28,7 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import psutil
 import timm
 import torch
 import torch.nn as nn
@@ -38,8 +39,8 @@ SMOKE = bool(os.environ.get('DR_SMOKE'))  # tiny CPU run that only exercises the
 DATA = Path(os.environ.get('DR_DATA') or Path(sorted(glob.glob('/kaggle/input/**/labels.csv', recursive=True))[0]).parent)
 WORK = Path(os.environ.get('DR_WORK', '/kaggle/working'))
 
-MODEL = 'vit_base_patch16_384.augreg_in21k_ft_in1k'  # CNN: 'resnet50.a1_in1k' with LR = 1e-4 (Huang et al. 2021 reference)
-IMG = 512            # input resolution. Microaneurysms are ~2-4 px here; avoid going below 448.
+MODEL = 'vit_base_patch16_384.augreg_in21k_ft_in1k'  # CNN baseline: 'tf_efficientnet_b4.ns_jft_in1k' with LR = 2e-4
+IMG = 512             # input resolution. Microaneurysms are ~2-4 px here; avoid going below 448.
 PREPROC = 'ben'       # 'ben' (Graham 2015) | 'clahe' | 'none'
 EPOCHS, BS, LR = 10, 16, 5e-5  # LR applies to the backbone; the head gets 10x
 SAMPLE_ALPHA = 0.5    # sampling weight ∝ count^-alpha: 0 = natural distribution, 1 = fully balanced
@@ -56,6 +57,7 @@ DEV = 'cuda' if torch.cuda.is_available() else 'cpu'
 AMP = DEV == 'cuda'
 WORK.mkdir(parents=True, exist_ok=True)
 torch.manual_seed(0)
+torch.backends.cudnn.benchmark = True  # fixed input size: let cuDNN pick the fastest conv kernels
 print(DATA, DEV, torch.cuda.device_count(), 'GPU(s)')
 
 # %%
@@ -132,7 +134,7 @@ def make_model():
     except TypeError:
         m = timm.create_model(MODEL, **kw)  # CNNs accept any size
     m.set_grad_checkpointing(GRAD_CKPT)
-    return m.to(DEV)
+    return m.to(DEV, memory_format=torch.channels_last)  # NHWC: fast fp16 tensor-core convs (matters for CNNs)
 
 
 model = make_model()
@@ -142,7 +144,7 @@ net = nn.DataParallel(model) if torch.cuda.device_count() > 1 else model
 
 
 def norm(x):
-    return (x.to(DEV, non_blocking=True).float() - MEAN) / STD
+    return ((x.to(DEV, non_blocking=True).float() - MEAN) / STD).contiguous(memory_format=torch.channels_last)
 
 
 def ordinal_targets(y):  # grade -> [y>0, y>1, y>2, y>3], smoothed towards 0.5
@@ -190,8 +192,9 @@ def train():
     best, t0, hist = -1.0, time.time(), []
     for ep in range(EPOCHS):
         net.train()
-        te, tot = time.time(), 0.0
+        te, tot, wait, tw = time.time(), 0.0, 0.0, time.time()
         for i, (x, y) in enumerate(dl):
+            wait += time.time() - tw  # time blocked on the DataLoader
             with torch.autocast(DEV, dtype=torch.float16, enabled=AMP):
                 logits = net(norm(x))
             loss = F.binary_cross_entropy_with_logits(logits.float(), ordinal_targets(y.to(DEV)))
@@ -202,9 +205,12 @@ def train():
             scaler.step(opt)
             scaler.update()
             sched.step()
-            tot += loss.item()
+            tot += loss.item()  # also syncs the GPU, so `wait` below is real data-loading time
             if i % 200 == 0:
-                print(f'ep {ep} it {i}/{len(dl)} loss {tot / (i + 1):.4f} {(i + 1) * BS / (time.time() - te):.1f} img/s')
+                gpu = torch.cuda.max_memory_allocated() / 2**30 if AMP else 0
+                print(f'ep {ep} it {i}/{len(dl)} loss {tot / (i + 1):.4f} {(i + 1) * BS / (time.time() - te):.1f} img/s | '
+                      f'data-wait {wait / (time.time() - te):.0%} gpu-mem {gpu:.1f}G host-ram {psutil.virtual_memory().percent:.0f}%')
+            tw = time.time()
         s, _ = predict(splits['val'], tta=1)
         k = qwk(splits['val'].grade, to_grade(s))
         hist.append({'epoch': ep, 'loss': tot / len(dl), 'val_qwk': k, 'min': (time.time() - t0) / 60})
