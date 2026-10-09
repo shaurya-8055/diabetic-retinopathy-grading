@@ -39,8 +39,8 @@ SMOKE = bool(os.environ.get('DR_SMOKE'))  # tiny CPU run that only exercises the
 DATA = Path(os.environ.get('DR_DATA') or Path(sorted(glob.glob('/kaggle/input/**/labels.csv', recursive=True))[0]).parent)
 WORK = Path(os.environ.get('DR_WORK', '/kaggle/working'))
 
-MODEL = 'vit_base_patch16_384.augreg_in21k_ft_in1k'  # CNN baseline: 'tf_efficientnet_b4.ns_jft_in1k' with LR = 2e-4
-IMG = 512             # input resolution. Microaneurysms are ~2-4 px here; avoid going below 448.
+MODEL = 'vit_base_patch16_384.augreg_in21k_ft_in1k'  # CNN: 'resnet50.a1_in1k' with LR = 1e-4 (Huang et al. 2021 reference)
+IMG = 512            # input resolution. Microaneurysms are ~2-4 px here; avoid going below 448.
 PREPROC = 'ben'       # 'ben' (Graham 2015) | 'clahe' | 'none'
 EPOCHS, BS, LR = 10, 16, 5e-5  # LR applies to the backbone; the head gets 10x
 SAMPLE_ALPHA = 0.5    # sampling weight ∝ count^-alpha: 0 = natural distribution, 1 = fully balanced
@@ -49,6 +49,7 @@ N_TTA = 4
 GRAD_CKPT = False     # True if CUDA OOM (slower, much less memory)
 TIME_BUDGET_H = 9.0   # stop training early so evaluation still fits in Kaggle's 12 h session
 CKPT = None           # path to an existing model.pt to skip training (re-run eval/screening without spending GPU hours)
+SENS_TARGET = 0.90    # screening referral cut-off: referable-DR sensitivity it must reach on val
 WORKERS = os.cpu_count()
 if SMOKE:
     MODEL, IMG, EPOCHS, BS, WORKERS = 'vit_tiny_patch16_224', 64, 1, 4, 2
@@ -233,6 +234,7 @@ model.load_state_dict(torch.load(CKPT or WORK / 'model.pt', map_location=DEV))
 # ## Evaluation
 # Grade cut-offs and the uncertainty threshold are fitted on **val only** and then frozen for the internal test and the external Messidor-2 set.
 # Every metric gets a 95 % bootstrap CI. Referable DR (rDR) means grade ≥ 2 (moderate NPDR or worse). Vision-threatening DR (VTDR) means grade ≥ 3.
+# Two operating points: the QWK-optimal grade cut-offs (for grading), and a **screening** cut-off on the score set to `SENS_TARGET` rDR sensitivity on val (`@screen`, for referral).
 
 # %%
 def fit_thresholds(y, s):  # coordinate ascent on QWK (the APTOS "OptimizedRounder" idea)
@@ -253,8 +255,9 @@ def binary(y, p, s, cut):
 def metrics(y, p, s):
     r = binary(y, p, s, 2)
     v = binary(y, p, s, 3)
+    o = binary(y, (s >= RDR_T) * 2, s, 2)  # screening operating point
     return {'qwk': qwk(y, p), 'acc': (y == p).mean(), 'rdr_sens': r[0], 'rdr_spec': r[1], 'rdr_auc': r[2],
-            'vtdr_sens': v[0], 'vtdr_spec': v[1], 'vtdr_auc': v[2]}
+            'rdr_sens@screen': o[0], 'rdr_spec@screen': o[1], 'vtdr_sens': v[0], 'vtdr_spec': v[1], 'vtdr_auc': v[2]}
 
 
 def report(name, d, s, sd, thr, unc):
@@ -263,10 +266,10 @@ def report(name, d, s, sd, thr, unc):
     boot = pd.DataFrame([metrics(y[i], p[i], s[i]) for i in rng.integers(0, len(y), (500, len(y)))])
     m = metrics(y, p, s)
     res = {k: {'value': v, 'ci95': list(boot[k].quantile([0.025, 0.975]))} for k, v in m.items()}
-    # Screening decisions are per patient: refer if either eye is referable
-    pat = pd.DataFrame({'pt': d.patient, 'y': y, 'p': p}).groupby('pt').max()
-    res['patient_rdr_sens'] = float((pat.p[pat.y >= 2] >= 2).mean())
-    res['patient_rdr_spec'] = float((pat.p[pat.y < 2] < 2).mean())
+    # Screening decisions are per patient: refer if either eye passes the screening cut-off
+    pat = pd.DataFrame({'pt': d.patient, 'y': y, 'ref': s >= RDR_T}).groupby('pt').max()
+    res['patient_rdr_sens@screen'] = float(pat.ref[pat.y >= 2].mean())
+    res['patient_rdr_spec@screen'] = float((~pat.ref[pat.y < 2]).mean())
     flagged = sd > unc
     res['uncertain_frac'] = float(flagged.mean())
     res['qwk_confident_only'] = qwk(y[~flagged], p[~flagged]) if (~flagged).sum() > 1 else np.nan
@@ -293,10 +296,11 @@ def report(name, d, s, sd, thr, unc):
 val_s, val_sd = predict(splits['val'])
 THR = fit_thresholds(splits['val'].grade.values, val_s)
 UNC = float(np.quantile(val_sd, 0.95))  # top 5 % most TTA-unstable images go to human review
-print('thresholds', np.round(THR, 3), 'uncertainty cut-off', round(UNC, 3))
+RDR_T = float(np.quantile(val_s[splits['val'].grade.values >= 2], 1 - SENS_TARGET, method='lower'))  # referral cut-off; 'lower' guarantees >= SENS_TARGET
+print('thresholds', np.round(THR, 3), 'uncertainty cut-off', round(UNC, 3), 'screening cut-off', round(RDR_T, 3))
 
 results = {'config': dict(model=MODEL, img=IMG, preproc=PREPROC, epochs=EPOCHS, alpha=SAMPLE_ALPHA, smooth=SMOOTH,
-                          tta=N_TTA, thresholds=THR, uncertainty_sd=UNC)}
+                          tta=N_TTA, thresholds=THR, uncertainty_sd=UNC, screening_threshold=RDR_T)}
 results['val'] = report('val', splits['val'], val_s, val_sd, THR, UNC)
 for src, d in splits['val'].groupby('dataset'):  # bias check across sources
     print(f'val QWK on {src}: {qwk(d.grade, to_grade(val_s[d.index], THR)):.3f}  (n={len(d)})')
@@ -333,13 +337,16 @@ def crop_fundus(img, size=768):  # same as 01_preprocess.crop_fundus
     return cv2.resize(sq, (size, size), interpolation=cv2.INTER_AREA)
 
 
-def recommend(grade, uncertain):
+def recommend(grade, refer, uncertain):
     if grade is None:
         return 'Ungradable: retake photo'
     if uncertain:
         return 'Send to human grader'
-    return ['Rescreen in 12 months', 'Rescreen in 6-12 months', 'Refer to ophthalmologist',
-            'Urgent referral', 'Urgent referral'][grade]
+    if grade >= 3:
+        return 'Urgent referral'
+    if refer:  # screening cut-off (SENS_TARGET sensitivity), deliberately more sensitive than the grade cut-offs
+        return 'Refer to ophthalmologist'
+    return 'Rescreen in 6-12 months' if grade == 1 else 'Rescreen in 12 months'
 
 
 @torch.no_grad()
@@ -351,22 +358,25 @@ def screen(paths, patients=None):
         im.draft('RGB', (768, 768))
         img = crop_fundus(np.asarray(im.convert('RGB')))
         if img is None:
-            rows.append({'file': str(path), 'grade': None, 'recommendation': recommend(None, False)})
+            rows.append({'file': str(path), 'grade': None, 'recommendation': recommend(None, False, False)})
             continue
         img = enhance(cv2.resize(img, (IMG, IMG), interpolation=cv2.INTER_AREA))
         x = norm(torch.from_numpy(img).permute(2, 0, 1)[None])
         with torch.autocast(DEV, dtype=torch.float16, enabled=AMP):
             s = torch.stack([expected_grade(net(v)) for v in [x, x.flip(3), x.flip(2), x.flip((2, 3))][:N_TTA]]).cpu().numpy()
         g = int(to_grade(s.mean(), THR))
-        unc = bool(s.std() > UNC)
+        unc, ref = bool(s.std() > UNC), bool(s.mean() >= RDR_T)
         rows.append({'file': str(path), 'grade': g, 'grade_name': GRADE_NAMES[g], 'score': round(float(s.mean()), 3),
-                     'tta_sd': round(float(s.std()), 3), 'referable': g >= 2, 'uncertain': unc,
-                     'recommendation': recommend(g, unc)})
+                     'tta_sd': round(float(s.std()), 3), 'referable': ref, 'uncertain': unc,
+                     'recommendation': recommend(g, ref, unc)})
     out = pd.DataFrame(rows)
     if patients is not None:
         out['patient'] = list(patients)
-        worst = out.groupby('patient').grade.transform('max')
-        out['patient_recommendation'] = [recommend(None if pd.isna(w) else int(w), False) for w in worst]
+        g = out.groupby('patient')
+        worst = g.grade.transform('max')
+        refer = g.referable.transform('max').fillna(False)
+        unc = g.uncertain.transform('max').fillna(False)
+        out['patient_recommendation'] = [recommend(None if pd.isna(w) else int(w), r, u) for w, r, u in zip(worst, refer, unc)]
     return out
 
 
