@@ -81,3 +81,46 @@ if TEST_LABELS:  # fusion used both eyes of the full test set, so subset only af
         sets['test_private'] = t[t.Usage == 'Private'].drop(columns='Usage').reset_index(drop=True)
 
 
+# %%
+# Same definitions as 02_train_eval
+def qwk(y, p):
+    return cohen_kappa_score(y, p, weights='quadratic')
+
+
+def to_grade(s, thr=(0.5, 1.5, 2.5, 3.5)):
+    return np.digitize(s, thr)
+
+
+def fit_thresholds(y, s):
+    thr = [0.5, 1.5, 2.5, 3.5]
+    for _ in range(3):
+        for k in range(4):
+            lo, hi = (thr[k - 1] if k else 0.0), (thr[k + 1] if k < 3 else 4.0)
+            thr[k] = max(np.linspace(lo, hi, 41)[1:-1], key=lambda t: qwk(y, to_grade(s, thr[:k] + [t] + thr[k + 1:])))
+    return thr
+
+
+def metrics(y, s, thr, rdr_t):
+    p = to_grade(s, thr)
+    r, ref = y >= 2, s >= rdr_t
+    recall = [(p[y == g] == g).mean() for g in range(5) if (y == g).any()]
+    return {'qwk': qwk(y, p), 'acc': (y == p).mean(), 'macro_recall': np.mean(recall),
+            'rdr_auc': roc_auc_score(r, s) if 0 < r.sum() < len(r) else np.nan,
+            'rdr_sens@qwk': (p[r] >= 2).mean(), 'rdr_spec@qwk': (p[~r] < 2).mean(),
+            'rdr_sens@screen': ref[r].mean(), 'rdr_spec@screen': (~ref[~r]).mean(),
+            'vtdr_auc': roc_auc_score(y >= 3, s) if 0 < (y >= 3).sum() < len(y) else np.nan}
+
+
+cut = {}
+rows = []
+for v in variants:
+    y, s = sets['val'].grade.values, sets['val'][v].values
+    cut[v] = (fit_thresholds(y, s), float(np.quantile(s[y >= 2], 1 - SENS_TARGET, method='lower')))  # 'lower': sens >= target
+    for name, d in sets.items():
+        rows.append({'variant': v, 'set': name, 'n': len(d), **metrics(d.grade.values, d[v].values, *cut[v])})
+table = pd.DataFrame(rows)
+table.to_csv(WORK / 'results_table.csv', index=False)
+pd.set_option('display.width', 200)
+print(table.pivot(index='variant', columns='set', values='qwk').round(4))
+print(table.round(3).to_string(index=False))
+
