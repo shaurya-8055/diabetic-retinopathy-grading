@@ -124,3 +124,36 @@ pd.set_option('display.width', 200)
 print(table.pivot(index='variant', columns='set', values='qwk').round(4))
 print(table.round(3).to_string(index=False))
 
+# %% [markdown]
+# ## Final variant: chosen by val QWK, full report with 95 % bootstrap CIs
+
+# %%
+best = max(variants, key=lambda v: table[(table.variant == v) & (table.set == 'val')].qwk.item())
+thr, rdr_t = cut[best]
+print('final variant:', best, 'models:', variants[best], 'grade cut-offs', np.round(thr, 3), 'screening cut-off', round(rdr_t, 3))
+
+for name, d in sets.items():
+    if name == 'val':
+        continue
+    y, s = d.grade.values, d[best].values
+    rng = np.random.default_rng(0)
+    boot = pd.DataFrame([metrics(y[i], s[i], thr, rdr_t) for i in rng.integers(0, len(y), (300, len(y)))])
+    m = metrics(y, s, thr, rdr_t)
+    print(f'\n===== {name} (n={len(y)}) =====')
+    for k, val in m.items():
+        lo, hi = boot[k].quantile([0.025, 0.975])
+        print(f'{k:18s} {val:.3f}  [{lo:.3f}, {hi:.3f}]')
+    p = to_grade(s, thr)
+    print(classification_report(y, p, labels=range(5), digits=3, zero_division=0,
+                                target_names=['0 none', '1 mild', '2 moderate', '3 severe', '4 PDR']))
+    cm = confusion_matrix(y, p, labels=range(5))
+    fig, ax = plt.subplots(1, 2, figsize=(11, 4.5))
+    ConfusionMatrixDisplay(cm).plot(ax=ax[0], colorbar=False, values_format='d')
+    ConfusionMatrixDisplay(cm / cm.sum(1, keepdims=True).clip(1)).plot(ax=ax[1], colorbar=False, values_format='.2f')
+    ax[0].set_title(f'{best} · {name}: counts')
+    ax[1].set_title('row-normalised (per-grade recall)')
+    fig.savefig(WORK / f'cm_final_{name}.png', dpi=120, bbox_inches='tight')
+    plt.show()
+
+json.dump({'variant': best, 'models': variants[best], 'fusion': fusion.get(best), 'grade_thresholds': thr,
+           'screening_threshold': rdr_t, 'sens_target': SENS_TARGET}, open(WORK / 'final_config.json', 'w'), indent=1)
