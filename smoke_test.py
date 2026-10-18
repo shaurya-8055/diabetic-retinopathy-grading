@@ -1,4 +1,4 @@
-"""CPU smoke test: fake Kaggle inputs (split zips, csv.zip, duplicates, a blank image) -> 01 -> 02 with a tiny ViT.
+"""CPU smoke test: fake Kaggle inputs (split zips, csv.zip, duplicates, a blank image) -> 01 -> 02 (tiny ViT) -> 03.
 
     python smoke_test.py      # needs numpy, opencv, pillow, pandas, scipy, scikit-learn, matplotlib, torch, timm
 """
@@ -31,7 +31,7 @@ def jpg(img, ext='.jpeg'):
 
 
 # EyePACS-like competition data: train.zip split into byte parts, labels in a .csv.zip
-comp = inp / 'diabetic-retinopathy-detection'
+comp = inp / 'competitions/diabetic-retinopathy-detection'
 comp.mkdir(parents=True)
 for split, n in [('train', 40), ('test', 10)]:
     buf, labels = io.BytesIO(), []
@@ -51,11 +51,12 @@ for split, n in [('train', 40), ('test', 10)]:
         with zipfile.ZipFile(comp / 'trainLabels.csv.zip', 'w') as z:
             z.writestr('trainLabels.csv', lab.to_csv(index=False))
     else:
-        (inp / 'resized-2015-2019-blindness-detection-images/labels').mkdir(parents=True)
-        lab.assign(Usage='Private').to_csv(inp / 'resized-2015-2019-blindness-detection-images/labels/testLabels15.csv', index=False)
+        bw = inp / 'datasets/benjaminwarner/resized-2015-2019-blindness-detection-images/labels'
+        bw.mkdir(parents=True)
+        lab.assign(Usage=np.where(np.arange(len(lab)) % 4, 'Private', 'Public')).to_csv(bw / 'testLabels15.csv', index=False)
 
 # APTOS: pngs incl. a consistent duplicate pair and a conflicting duplicate pair
-ap = inp / 'aptos2019-blindness-detection'
+ap = inp / 'competitions/aptos2019-blindness-detection'
 (ap / 'train_images').mkdir(parents=True)
 rows = []
 for i in range(30):
@@ -68,16 +69,16 @@ for dup, src, g in [('dup_same', 'a001', 1), ('dup_conflict', 'a002', 4)]:
 pd.DataFrame(rows, columns=['id_code', 'diagnosis']).to_csv(ap / 'train.csv', index=False)
 
 # Messidor-2: images + Google adjudicated grades (one ungradable)
-me = inp / 'messidor2/messidor-2/images'
+me = inp / 'datasets/xyaustin/messidor2/messidor-2/images'
 me.mkdir(parents=True)
 rows = []
 for i in range(12):
     g = i % 5
     cv2.imwrite(str(me / f'2005_{i}_PP.png'), fundus(g, 960, 1440)[..., ::-1])
     rows.append((f'2005_{i}_PP.png', g if i else np.nan, 0, int(i != 0)))
-(inp / 'messidor2-dr-grades').mkdir()
+(inp / 'datasets/google-brain/messidor2-dr-grades').mkdir(parents=True)
 pd.DataFrame(rows, columns=['image_id', 'adjudicated_dr_grade', 'adjudicated_dme', 'adjudicated_gradable']) \
-    .to_csv(inp / 'messidor2-dr-grades/messidor_data.csv', index=False)
+    .to_csv(inp / 'datasets/google-brain/messidor2-dr-grades/messidor_data.csv', index=False)
 
 env = {**os.environ, 'DR_INPUT': str(inp), 'DR_WORK': str(work), 'DR_DATA': str(work), 'DR_SMOKE': '1', 'MPLBACKEND': 'Agg'}
 here = Path(__file__).parent
@@ -96,4 +97,20 @@ m = json.load(open(work / 'metrics.json'))
 assert {'val', 'test', 'external'} <= set(m), m.keys()
 for f in ('model.pt', 'cm_val.png', 'cm_external.png', 'pred_test.csv'):
     assert (work / f).exists(), f
+assert 'rdr_sens@screen' in m['test'], m['test'].keys()
+
+# 03: combine the real run with a second, noisier fake run (exercises the ensemble path)
+run2 = root / 'run2'
+run2.mkdir()
+for split in ('val', 'test', 'external'):
+    p = pd.read_csv(work / f'pred_{split}.csv')
+    p.assign(score=(p.score + rng.normal(0, 0.3, len(p))).clip(0, 4)).to_csv(run2 / f'pred_{split}.csv', index=False)
+final = root / 'final'
+subprocess.run([sys.executable, str(here / '03_fusion_ensemble.py')], env={**env, 'DR_INPUT': str(root), 'DR_WORK': str(final)},
+               check=True, cwd=root)
+t = pd.read_csv(final / 'results_table.csv')
+assert {'working', 'run2', 'ensemble', 'ensemble+pair'} <= set(t.variant), set(t.variant)
+assert {'val', 'test', 'test_private', 'external'} == set(t.set), set(t.set)
+assert (t[t.set == 'val']['rdr_sens@screen'] >= 0.9 - 1e-9).all(), 'screening cut-off must hit the val sensitivity target'
+assert json.load(open(final / 'final_config.json'))['variant'] in set(t.variant)
 print('SMOKE TEST OK', root)

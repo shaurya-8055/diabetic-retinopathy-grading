@@ -3,7 +3,7 @@ import json
 import re
 import sys
 
-for py in sys.argv[1:] or ['01_preprocess.py', '02_train_eval.py']:
+for py in sys.argv[1:] or ['01_preprocess.py', '02_train_eval.py', '03_fusion_ensemble.py']:
     cells = []
     for chunk in re.split(r'^# %%', open(py).read(), flags=re.M)[1:]:
         head, _, body = chunk.partition('\n')
