@@ -6,7 +6,8 @@ It produces per-grade confusion matrices, QWK with bootstrap CIs, referable-DR s
 | file | what |
 |---|---|
 | `01_preprocess.ipynb` | **CPU** notebook. Reads the original 82 GB EyePACS split zips in place, crops the fundus to 768 px, deduplicates APTOS, and makes a patient-grouped train/val split. Writes ~10 GB of sharded zips plus `labels.csv`. |
-| `02_train_eval.ipynb` | **GPU T4 x2** notebook. Trains the ordinal ViT/CNN, evaluates with TTA (val, EyePACS test, Messidor-2), and holds the screening tool and clinical limitations. |
+| `02_train_eval.ipynb` | **GPU T4 x2** notebook. Trains the ordinal ViT/CNN, evaluates with TTA (val, EyePACS test, Messidor-2), and holds the screening tool and clinical limitations. Run it once per architecture or ablation. |
+| `03_fusion_ensemble.ipynb` | **CPU** notebook. Combines the prediction CSVs of any number of 02 runs: ensemble, paired-eye fusion, and a screening operating point at 90 % rDR sensitivity. Writes `results_table.csv` and picks the final variant by val QWK. |
 | `*.py` | Source of truth (`# %%` cells). Run `python build_notebooks.py` to regenerate the `.ipynb` files after editing. |
 | `smoke_test.py` | CPU test of both stages on synthetic data shaped like the Kaggle inputs (split zips, csv.zip, duplicates, a blank image). |
 
@@ -22,6 +23,8 @@ It produces per-grade confusion matrices, QWK with bootstrap CIs, referable-DR s
    Any source that is missing is skipped with a message rather than crashing.
 2. **02_train_eval**: import it, then set Accelerator to **GPU T4 x2** and Internet to **On**. *Add Input → Notebooks →* your `01_preprocess`, then **Save & Run All**.
    To re-evaluate without retraining, add the run's output as input and set `CKPT = '/kaggle/input/.../model.pt'`.
+   For the CNN, set `MODEL = 'resnet50.a1_in1k'` and `LR = 1e-4`.
+3. **03_fusion_ensemble**: set Accelerator to **None**. *Add Input → Notebooks →* every 02 run you want to combine, plus `benjaminwarner/resized-2015-2019-blindness-detection-images` for the Private-test split. Then **Save & Run All**.
 
 ### Budget (Kaggle free tier: 30 GPU-h/week, 12 h/session, 20 GB output, ~500 output files, 4 CPUs)
 All of these numbers are **estimates**. Nothing has been run on Kaggle yet.
@@ -38,6 +41,16 @@ That leaves weekly quota for a second model (e.g. the EfficientNet-B4 CNN baseli
 - **Resolution.** Microaneurysms span only a few pixels even in the originals. Krause et al. 2018 found that moving from 299 to 779 px input improved grading. Kaggle-2015 winners (Graham; o_O) trained at ≥512 px.
   So the shards are stored at **768 px** and training defaults to **512 px**. For ViT-B/16 that is 1024 tokens, with position embeddings interpolated from the 384 checkpoint (as Dosovitskiy et al. 2021 do when fine-tuning at higher resolution).
   If GPU time allows, try `IMG = 640` with `GRAD_CKPT = True`.
+- **Huang et al. 2021** ran a controlled ablation of a ResNet-50 on this exact EyePACS split, reporting test kappa on the Private 42,670 images.
+  They found the following:
+  - Raising the input from 512 to 768 px gained +0.010.
+  - MSE regression beat cross-entropy by +0.020. Our cumulative-ordinal head with an expected-grade score plays the same role.
+  - Graham and CLAHE enhancement each **cost** about 0.005.
+  - Natural (instance-balanced) sampling beat class-balanced sampling, which overfit the rare grades.
+  - Paired-eye feature fusion was the biggest late gain, +0.027, taking them to 0.858.
+  - A 10-model ensemble added +0.005, for a final 0.863.
+
+  Our `PREPROC` and `SAMPLE_ALPHA` defaults go against the first two of their findings, so both are ablations to run.
 - **Ben Graham preprocessing** (2015 winner): `4·img − 4·GaussianBlur(img, σ=size/30) + 128`, then clip to 90 % of the radius. It removes illumination and camera colour differences while keeping lesion edges.
   That should help most on cross-dataset (Messidor-2) transfer. It runs at load time, so `PREPROC = 'clahe' | 'none'` is a one-line ablation.
 - **Ordinal formulation.** The head predicts the 4 cumulative probabilities P(y > k), trained with BCE (Frank & Hall 2001; CORAL, Cao et al. 2020).
@@ -64,6 +77,7 @@ That leaves weekly quota for a second model (e.g. the EfficientNet-B4 CNN baseli
 - Gulshan V. et al. *Development and validation of a deep learning algorithm for detection of DR in retinal fundus photographs.* JAMA 2016.
 - Krause J. et al. *Grader variability and the importance of reference standards for evaluating ML models for DR.* Ophthalmology 2018.
 - Graham B. *Kaggle Diabetic Retinopathy Detection competition report.* 2015.
+- Huang Y. et al. *Identifying the key components in ResNet-50 for diabetic retinopathy grading from fundus images: a systematic investigation.* arXiv:2110.14160, 2021.
 - Voets M., Møllersen K., Bongo L.A. *Reproduction study using public data of: Development and validation of a deep learning algorithm…* PLoS ONE 2019.
 - Cao W., Mirjalili V., Raschka S. *Rank consistent ordinal regression for neural networks (CORAL).* Pattern Recognition Letters 2020.
 - Dosovitskiy A. et al. *An Image is Worth 16x16 Words (ViT).* ICLR 2021.
