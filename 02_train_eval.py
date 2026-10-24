@@ -12,7 +12,8 @@
 # | **external** | Messidor-2 with adjudicated grades (different country, camera and grading protocol); never used for tuning |
 #
 # **Method**
-# * Backbone: ViT-B/16 at **512 px** (1024 tokens) by default, with pos-embeddings interpolated from 384. Any timm model works, e.g. an EfficientNet as the CNN baseline.
+# * Backbone: ViT-B/16 at **512 px** (1024 tokens) by default, with pos-embeddings interpolated from 384. Any timm model works, e.g. ResNet-50 as the CNN baseline.
+# * **Multi-GPU:** one process per GPU (DistributedDataParallel, forked from this notebook). Use *Restart & Run All*: the GPU processes can only be forked from a kernel that has not touched CUDA yet.
 # * **Ordinal head:** 4 logits, one per cumulative probability P(grade > k), trained with BCE (Frank & Hall / CORAL-style).
 #   The continuous score Σσ(logitₖ) is the expected grade. Grade cut-offs are tuned on val to maximise QWK.
 # * **Imbalance:** sampling weight ∝ class_count^-α, with α = 0.5 (square-root rebalancing). Fully balanced sampling over-predicts the rare grades.
