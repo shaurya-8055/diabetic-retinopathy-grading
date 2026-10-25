@@ -12,8 +12,7 @@
 # | **external** | Messidor-2 with adjudicated grades (different country, camera and grading protocol); never used for tuning |
 #
 # **Method**
-# * Backbone: ViT-B/16 at **512 px** (1024 tokens) by default, with pos-embeddings interpolated from 384. Any timm model works, e.g. ResNet-50 as the CNN baseline.
-# * **Multi-GPU:** one process per GPU (DistributedDataParallel, forked from this notebook). Use *Restart & Run All*: the GPU processes can only be forked from a kernel that has not touched CUDA yet.
+# * Backbone: ViT-B/16 at **512 px** (1024 tokens) by default, with pos-embeddings interpolated from 384. Any timm model works, e.g. an EfficientNet as the CNN baseline.
 # * **Ordinal head:** 4 logits, one per cumulative probability P(grade > k), trained with BCE (Frank & Hall / CORAL-style).
 #   The continuous score Σσ(logitₖ) is the expected grade. Grade cut-offs are tuned on val to maximise QWK.
 # * **Imbalance:** sampling weight ∝ class_count^-α, with α = 0.5 (square-root rebalancing). Fully balanced sampling over-predicts the rare grades.
@@ -22,8 +21,10 @@
 # * **TTA:** identity + h-flip + v-flip + 180° rotation. The TTA spread is also used as an uncertainty signal that sends an image to a human grader.
 
 # %%
-import functools, glob, json, os, time, zipfile
+import datetime, functools, glob, json, os, socket, time, zipfile
 from pathlib import Path
+
+os.environ.setdefault('PYTORCH_NVML_BASED_CUDA_CHECK', '1')  # count GPUs via NVML so this kernel never initialises CUDA before forking
 
 import cv2
 import matplotlib.pyplot as plt
@@ -32,9 +33,12 @@ import pandas as pd
 import psutil
 import timm
 import torch
+import torch.distributed as dist
+import torch.multiprocessing as tmp
 import torch.nn as nn
 import torch.nn.functional as F
 from sklearn.metrics import ConfusionMatrixDisplay, classification_report, cohen_kappa_score, confusion_matrix, roc_auc_score
+from torch.nn.parallel import DistributedDataParallel as DDP
 
 SMOKE = bool(os.environ.get('DR_SMOKE'))  # tiny CPU run that only exercises the code path
 DATA = Path(os.environ.get('DR_DATA') or Path(sorted(glob.glob('/kaggle/input/**/labels.csv', recursive=True))[0]).parent)
@@ -43,7 +47,7 @@ WORK = Path(os.environ.get('DR_WORK', '/kaggle/working'))
 MODEL = 'vit_base_patch16_384.augreg_in21k_ft_in1k'  # CNN: 'resnet50.a1_in1k' with LR = 1e-4 (Huang et al. 2021 reference)
 IMG = 512            # input resolution. Microaneurysms are ~2-4 px here; avoid going below 448.
 PREPROC = 'ben'       # 'ben' (Graham 2015) | 'clahe' | 'none'
-EPOCHS, BS, LR = 10, 16, 5e-5  # LR applies to the backbone; the head gets 10x
+EPOCHS, BS, LR = 10, 16, 5e-5  # BS is the global batch (split across GPUs); LR applies to the backbone, the head gets 10x
 SAMPLE_ALPHA = 0.5    # sampling weight ∝ count^-alpha: 0 = natural distribution, 1 = fully balanced
 SMOOTH = 0.05         # ordinal label smoothing (robustness to label noise)
 N_TTA = 4
@@ -51,16 +55,18 @@ GRAD_CKPT = False     # True if CUDA OOM (slower, much less memory)
 TIME_BUDGET_H = 9.0   # stop training early so evaluation still fits in Kaggle's 12 h session
 CKPT = None           # path to an existing model.pt to skip training (re-run eval/screening without spending GPU hours)
 SENS_TARGET = 0.90    # screening referral cut-off: referable-DR sensitivity it must reach on val
-WORKERS = os.cpu_count()
+WORKERS = os.cpu_count()  # DataLoader workers in total, shared between the GPU processes
 if SMOKE:
     MODEL, IMG, EPOCHS, BS, WORKERS = 'vit_tiny_patch16_224', 64, 1, 4, 2
 
-DEV = 'cuda' if torch.cuda.is_available() else 'cpu'
-AMP = DEV == 'cuda'
+NGPU = torch.cuda.device_count()  # NVML-based, does not initialise CUDA
+WORLD = NGPU if NGPU > 1 else (2 if SMOKE else 1)  # one process per GPU; the smoke test runs 2 CPU processes
+AMP = NGPU > 0
+amp = functools.partial(torch.autocast, 'cuda' if AMP else 'cpu', dtype=torch.float16, enabled=AMP)
 WORK.mkdir(parents=True, exist_ok=True)
 torch.manual_seed(0)
 torch.backends.cudnn.benchmark = True  # fixed input size: let cuDNN pick the fastest conv kernels
-print(DATA, DEV, torch.cuda.device_count(), 'GPU(s)')
+print(DATA, NGPU, 'GPU(s),', WORLD, 'process(es)')
 
 # %%
 df = pd.read_csv(DATA / 'labels.csv')
