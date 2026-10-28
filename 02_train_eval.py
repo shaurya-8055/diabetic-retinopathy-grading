@@ -118,14 +118,13 @@ class DS(torch.utils.data.Dataset):
         return torch.from_numpy(enhance(img)).permute(2, 0, 1), torch.tensor(r.grade, dtype=torch.float32)
 
 
-def loader(d, train, rank=0, world=1):
+def loader(d, train):
     sampler = None
-    if train:  # each process draws its own weighted sample (seeded by rank), so the GPUs see different images
+    if train:
         w = d.grade.map(d.grade.value_counts() ** -SAMPLE_ALPHA).to_numpy(copy=True)
-        sampler = torch.utils.data.WeightedRandomSampler(w, len(d) // world, generator=torch.Generator().manual_seed(rank))
-    nw = WORKERS // world
-    return torch.utils.data.DataLoader(DS(d, train), (BS if train else 2 * BS) // world, sampler=sampler, num_workers=nw,
-                                       pin_memory=AMP, drop_last=train, persistent_workers=nw > 0)
+        sampler = torch.utils.data.WeightedRandomSampler(w, len(d))
+    return torch.utils.data.DataLoader(DS(d, train), BS if train else 2 * BS, sampler=sampler, num_workers=WORKERS,
+                                       pin_memory=AMP, drop_last=train, persistent_workers=WORKERS > 0)
 
 
 # %%
@@ -136,17 +135,23 @@ def make_model():
     except TypeError:
         m = timm.create_model(MODEL, **kw)  # CNNs accept any size
     m.set_grad_checkpointing(GRAD_CKPT)
-    return m.to(DEV, memory_format=torch.channels_last)  # NHWC: fast fp16 tensor-core convs (matters for CNNs)
+    return m
 
 
-model = make_model()
-MEAN = torch.tensor(model.pretrained_cfg['mean'], device=DEV).view(1, 3, 1, 1) * 255
-STD = torch.tensor(model.pretrained_cfg['std'], device=DEV).view(1, 3, 1, 1) * 255
-net = nn.DataParallel(model) if torch.cuda.device_count() > 1 else model
+model = make_model()  # built on CPU once (weights download once); each GPU process gets a forked copy
+MEAN = torch.tensor(model.pretrained_cfg['mean']).view(1, 3, 1, 1) * 255
+STD = torch.tensor(model.pretrained_cfg['std']).view(1, 3, 1, 1) * 255
 
 
-def norm(x):
-    return ((x.to(DEV, non_blocking=True).float() - MEAN) / STD).contiguous(memory_format=torch.channels_last)
+def to_device(rank):
+    if NGPU:
+        torch.cuda.set_device(rank)
+    dev = f'cuda:{rank}' if NGPU else 'cpu'
+    return dev, model.to(dev, memory_format=torch.channels_last)  # NHWC: fast fp16 tensor-core convs (matters for CNNs)
+
+
+def norm(x, dev):
+    return ((x.to(dev, non_blocking=True).float() - MEAN.to(dev)) / STD.to(dev)).contiguous(memory_format=torch.channels_last)
 
 
 def ordinal_targets(y):  # grade -> [y>0, y>1, y>2, y>3], smoothed towards 0.5
@@ -166,29 +171,57 @@ def to_grade(s, thr=(0.5, 1.5, 2.5, 3.5)):
 
 
 @torch.no_grad()
-def predict(d, tta=N_TTA):
+def predict(m, d, dev, tta=N_TTA):
     """Returns (mean, std) of the expected grade over TTA views."""
-    net.eval()
+    m.eval()
     out = []
     for x, _ in loader(d, train=False):
-        x = norm(x)
+        x = norm(x, dev)
         views = [x, x.flip(3), x.flip(2), x.flip((2, 3))][:tta]
-        with torch.autocast(DEV, dtype=torch.float16, enabled=AMP):
-            out.append(torch.stack([expected_grade(net(v)) for v in views], 1).cpu())
+        with amp():
+            out.append(torch.stack([expected_grade(m(v)) for v in views], 1).cpu())
     s = torch.cat(out).numpy()
     return s.mean(1), s.std(1)
 
 
+def launch(fn, *args):
+    """Run fn(rank, world, *args) in one forked process per GPU.
+
+    Not nn.DataParallel: it starts new threads on every forward pass, and cuDNN's execution-plan cache is
+    thread-local, so every conv is re-planned on every step. CNNs ran ~10x slower and leaked host RAM until the kernel died."""
+    if WORLD == 1:
+        return fn(0, 1, *args)
+    assert not torch.cuda.is_initialized(), 'CUDA is already initialised in this kernel: use Restart & Run All'
+    tmp.start_processes(_forked, args=(fn, WORLD, *args), nprocs=WORLD, start_method='fork')
+
+
+def _forked(rank, fn, *args):
+    torch.set_num_threads(1)  # a forked child must not enter the parent's OpenMP pool (deadlocks), same as DataLoader workers
+    fn(rank, *args)
+
+
+def free_port():
+    with socket.socket() as s:
+        s.bind(('127.0.0.1', 0))
+        return s.getsockname()[1]
+
+
 # %% [markdown]
 # ## Train
+# One process per GPU with DistributedDataParallel. Rank 0 validates, checkpoints and logs.
 
 # %%
-def train():
-    head = list(model.get_classifier().parameters())
+def train(rank, world, port):
+    dev, m = to_device(rank)
+    if world > 1:
+        dist.init_process_group('nccl' if NGPU else 'gloo', init_method=f'tcp://127.0.0.1:{port}', rank=rank,
+                                world_size=world, timeout=datetime.timedelta(hours=1))
+    net = DDP(m, device_ids=[rank] if NGPU else None) if world > 1 else m
+    head = list(m.get_classifier().parameters())
     head_ids = {id(p) for p in head}
-    body = [p for p in model.parameters() if id(p) not in head_ids]
+    body = [p for p in m.parameters() if id(p) not in head_ids]
     opt = torch.optim.AdamW([{'params': body, 'lr': LR}, {'params': head, 'lr': LR * 10}], weight_decay=0.05)
-    dl = loader(splits['train'], train=True)
+    dl = loader(splits['train'], True, rank, world)
     sched = torch.optim.lr_scheduler.OneCycleLR(opt, [LR, LR * 10], total_steps=EPOCHS * len(dl), pct_start=0.1)
     scaler = torch.amp.GradScaler(enabled=AMP)
     best, t0, hist = -1.0, time.time(), []
@@ -197,38 +230,66 @@ def train():
         te, tot, wait, tw = time.time(), 0.0, 0.0, time.time()
         for i, (x, y) in enumerate(dl):
             wait += time.time() - tw  # time blocked on the DataLoader
-            with torch.autocast(DEV, dtype=torch.float16, enabled=AMP):
-                logits = net(norm(x))
-            loss = F.binary_cross_entropy_with_logits(logits.float(), ordinal_targets(y.to(DEV)))
+            with amp():
+                logits = net(norm(x, dev))
+            loss = F.binary_cross_entropy_with_logits(logits.float(), ordinal_targets(y.to(dev)))
             opt.zero_grad(set_to_none=True)
             scaler.scale(loss).backward()
             scaler.unscale_(opt)
-            nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            nn.utils.clip_grad_norm_(m.parameters(), 1.0)
             scaler.step(opt)
             scaler.update()
             sched.step()
             tot += loss.item()  # also syncs the GPU, so `wait` below is real data-loading time
-            if i % 200 == 0:
-                gpu = torch.cuda.max_memory_allocated() / 2**30 if AMP else 0
+            if rank == 0 and i % 200 == 0:
+                gpu = torch.cuda.max_memory_allocated(dev) / 2**30 if AMP else 0
                 print(f'ep {ep} it {i}/{len(dl)} loss {tot / (i + 1):.4f} {(i + 1) * BS / (time.time() - te):.1f} img/s | '
-                      f'data-wait {wait / (time.time() - te):.0%} gpu-mem {gpu:.1f}G host-ram {psutil.virtual_memory().percent:.0f}%')
+                      f'data-wait {wait / (time.time() - te):.0%} gpu-mem {gpu:.1f}G host-ram {psutil.virtual_memory().percent:.0f}%',
+                      flush=True)
             tw = time.time()
-        s, _ = predict(splits['val'], tta=1)
-        k = qwk(splits['val'].grade, to_grade(s))
-        hist.append({'epoch': ep, 'loss': tot / len(dl), 'val_qwk': k, 'min': (time.time() - t0) / 60})
-        print(hist[-1])
-        if k > best:
-            best = k
-            torch.save(model.state_dict(), WORK / 'model.pt')
-        if (time.time() - t0) * (ep + 2) / (ep + 1) > TIME_BUDGET_H * 3600:
-            print('time budget reached, stopping')
+        stop = [False]
+        if rank == 0:  # the other ranks wait at the broadcast below
+            s, _ = predict(m, splits['val'], dev, tta=1)
+            k = qwk(splits['val'].grade, to_grade(s))
+            hist.append({'epoch': ep, 'loss': tot / len(dl), 'val_qwk': k, 'min': (time.time() - t0) / 60})
+            print(hist[-1], flush=True)
+            if k > best:
+                best = k
+                torch.save(m.state_dict(), WORK / 'model.pt')
+            stop[0] = (time.time() - t0) * (ep + 2) / (ep + 1) > TIME_BUDGET_H * 3600
+        if world > 1:
+            dist.broadcast_object_list(stop, src=0)
+        if stop[0]:
+            print('time budget reached, stopping', flush=True)
             break
-    pd.DataFrame(hist).to_csv(WORK / 'history.csv', index=False)
+    if rank == 0:
+        pd.DataFrame(hist).to_csv(WORK / 'history.csv', index=False)
+    if world > 1:
+        dist.destroy_process_group()
+
+
+def predict_worker(rank, world, names, ckpt):  # each process scores every world-th image of each split
+    dev, m = to_device(rank)
+    m.load_state_dict(torch.load(ckpt, map_location=dev))
+    for n in names:
+        np.save(WORK / f'_scores_{n}_{rank}.npy', np.stack(predict(m, splits[n].iloc[rank::world], dev)))
+
+
+def predict_all(names):
+    launch(predict_worker, names, str(CKPT or WORK / 'model.pt'))
+    out = {}
+    for n in names:
+        a = np.empty((2, len(splits[n])))
+        for r in range(WORLD):
+            p = WORK / f'_scores_{n}_{r}.npy'
+            a[:, r::WORLD] = np.load(p)
+            p.unlink()
+        out[n] = a
+    return out
 
 
 if CKPT is None:
-    train()
-model.load_state_dict(torch.load(CKPT or WORK / 'model.pt', map_location=DEV))
+    launch(train, free_port())
 
 
 # %% [markdown]
