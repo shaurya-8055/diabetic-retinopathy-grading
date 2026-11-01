@@ -22,6 +22,9 @@ It produces per-grade confusion matrices, QWK with bootstrap CIs, referable-DR s
    Check that the paths in the `SRC`/`LABELS` cell match `/kaggle/input`, then **Save Version → Save & Run All**.
    Any source that is missing is skipped with a message rather than crashing.
 2. **02_train_eval**: import it, then set Accelerator to **GPU T4 x2** and Internet to **On**. *Add Input → Notebooks →* your `01_preprocess`, then **Save & Run All**.
+   Training and evaluation run as one forked process per GPU (DistributedDataParallel). In an interactive session, use **Restart & Run All**, because the GPU processes can only be forked from a kernel that hasn't touched CUDA yet.
+   The notebook stops with a clear message if CUDA is already initialised.
+   `nn.DataParallel` is not used: on Kaggle's PyTorch it made CNNs about 10× slower and leaked host RAM until the kernel died.
    To re-evaluate without retraining, add the run's output as input and set `CKPT = '/kaggle/input/.../model.pt'`.
    For the CNN, set `MODEL = 'resnet50.a1_in1k'` and `LR = 1e-4`.
 3. **03_fusion_ensemble**: set Accelerator to **None**. *Add Input → Notebooks →* every 02 run you want to combine, plus `benjaminwarner/resized-2015-2019-blindness-detection-images` for the Private-test split. Then **Save & Run All**.
@@ -31,7 +34,7 @@ All of these numbers are **estimates**. Nothing has been run on Kaggle yet.
 | step | hardware | est. time |
 |---|---|---|
 | 01 preprocess (88k + 5k images) | CPU, 0 GPU-h | ~1–2 h, I/O-bound |
-| 02 ViT-B/16 @512, 10 epochs | T4 x2 | ~3–4 h (the logs print img/s; `TIME_BUDGET_H` stops training early) |
+| 02 ViT-B/16 @512, 10 epochs | T4 x2 | ~4.5–5.5 h measured under DataParallel (24 img/s); DDP should be somewhat faster. The logs print img/s, and `TIME_BUDGET_H` stops training early |
 | 02 evaluation, 4×TTA on ~60k images | T4 x2 | ~40 min |
 
 That leaves weekly quota for a second model (e.g. the EfficientNet-B4 CNN baseline) or a `PREPROC` ablation.
