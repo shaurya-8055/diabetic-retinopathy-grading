@@ -1,0 +1,238 @@
+7.9s 1 0.00s - Debugger warning: It seems that frozen modules are being used, which may
+7.9s 2 0.00s - make the debugger miss breakpoints. Please pass -Xfrozen_modules=off
+7.9s 3 0.00s - to python to disable frozen modules.
+7.9s 4 0.00s - Note: Debugging will proceed. Set PYDEVD_DISABLE_FILE_VALIDATION=1 to disable this validation.
+8.5s 5 0.00s - Debugger warning: It seems that frozen modules are being used, which may
+8.5s 6 0.00s - make the debugger miss breakpoints. Please pass -Xfrozen_modules=off
+8.5s 7 0.00s - to python to disable frozen modules.
+8.5s 8 0.00s - Note: Debugging will proceed. Set PYDEVD_DISABLE_FILE_VALIDATION=1 to disable this validation.
+30.5s 9 /kaggle/input/notebooks/abhi0204/diabetic-retinopathy-preprocessing cuda 2 GPU(s)
+31.3s 10 grade         0     1      2     3     4    All
+31.3s 11 split
+31.3s 12 external   1017   270    347    75    35   1744
+31.3s 13 test      39529  3762   7860  1214  1206  53571
+31.3s 14 train     24864  2509   5590   907   877  34747
+31.3s 15 val        2739   270    623   134    95   3861
+31.3s 16 All       68149  6811  14420  2330  2213  93923
+31.9s 17 Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+31.9s 18 
+31.9s 19 Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+49.8s 20 ep 0 it 0/2171 loss 0.6911 1.0 img/s | data-wait 31% gpu-mem 4.0G host-ram 12%
+256.0s 21 ep 0 it 200/2171 loss 0.6194 14.5 img/s | data-wait 2% gpu-mem 4.0G host-ram 13%
+459.9s 22 ep 0 it 400/2171 loss 0.5818 15.1 img/s | data-wait 1% gpu-mem 4.0G host-ram 13%
+662.3s 23 ep 0 it 600/2171 loss 0.5605 15.3 img/s | data-wait 1% gpu-mem 4.0G host-ram 14%
+862.7s 24 ep 0 it 800/2171 loss 0.5426 15.5 img/s | data-wait 1% gpu-mem 4.0G host-ram 15%
+1060.4s 25 ep 0 it 1000/2171 loss 0.5235 15.6 img/s | data-wait 1% gpu-mem 4.0G host-ram 15%
+1256.9s 26 ep 0 it 1200/2171 loss 0.5081 15.7 img/s | data-wait 0% gpu-mem 4.0G host-ram 16%
+1453.2s 27 ep 0 it 1400/2171 loss 0.4946 15.8 img/s | data-wait 0% gpu-mem 4.0G host-ram 17%
+1649.4s 28 ep 0 it 1600/2171 loss 0.4832 15.9 img/s | data-wait 0% gpu-mem 4.0G host-ram 17%
+1845.7s 29 ep 0 it 1800/2171 loss 0.4737 15.9 img/s | data-wait 0% gpu-mem 4.0G host-ram 18%
+2042.3s 30 ep 0 it 2000/2171 loss 0.4652 15.9 img/s | data-wait 0% gpu-mem 4.0G host-ram 19%
+2395.3s 31 {'epoch': 0, 'loss': 0.45927855601677525, 'val_qwk': np.float64(0.6164169717661329), 'min': 39.35887590249379}
+2400.0s 32 ep 1 it 0/2171 loss 0.3709 3.5 img/s | data-wait 62% gpu-mem 4.0G host-ram 20%
+2595.3s 33 ep 1 it 200/2171 loss 0.3772 16.1 img/s | data-wait 1% gpu-mem 4.0G host-ram 21%
+2788.8s 34 ep 1 it 400/2171 loss 0.3751 16.3 img/s | data-wait 1% gpu-mem 4.0G host-ram 22%
+2981.6s 35 ep 1 it 600/2171 loss 0.3710 16.4 img/s | data-wait 1% gpu-mem 4.0G host-ram 22%
+3175.3s 36 ep 1 it 800/2171 loss 0.3714 16.4 img/s | data-wait 0% gpu-mem 4.0G host-ram 23%
+3372.8s 37 ep 1 it 1000/2171 loss 0.3690 16.4 img/s | data-wait 0% gpu-mem 4.0G host-ram 24%
+3566.4s 38 ep 1 it 1200/2171 loss 0.3663 16.4 img/s | data-wait 0% gpu-mem 4.0G host-ram 24%
+3763.2s 39 ep 1 it 1400/2171 loss 0.3629 16.4 img/s | data-wait 0% gpu-mem 4.0G host-ram 25%
+3962.4s 40 ep 1 it 1600/2171 loss 0.3608 16.3 img/s | data-wait 0% gpu-mem 4.0G host-ram 26%
+4157.4s 41 ep 1 it 1800/2171 loss 0.3598 16.4 img/s | data-wait 0% gpu-mem 4.0G host-ram 26%
+4347.9s 42 ep 1 it 2000/2171 loss 0.3586 16.4 img/s | data-wait 0% gpu-mem 4.0G host-ram 27%
+4707.3s 43 {'epoch': 1, 'loss': 0.3573037302614851, 'val_qwk': np.float64(0.7101500228678483), 'min': 77.89144382874171}
+4712.2s 44 ep 2 it 0/2171 loss 0.2776 3.3 img/s | data-wait 61% gpu-mem 4.0G host-ram 28%
+4908.5s 45 ep 2 it 200/2171 loss 0.3424 16.0 img/s | data-wait 2% gpu-mem 4.0G host-ram 29%
+5105.1s 46 ep 2 it 400/2171 loss 0.3371 16.1 img/s | data-wait 1% gpu-mem 4.0G host-ram 29%
+5300.9s 47 ep 2 it 600/2171 loss 0.3379 16.2 img/s | data-wait 1% gpu-mem 4.0G host-ram 30%
+5494.9s 48 ep 2 it 800/2171 loss 0.3355 16.3 img/s | data-wait 0% gpu-mem 4.0G host-ram 30%
+5686.7s 49 ep 2 it 1000/2171 loss 0.3341 16.4 img/s | data-wait 0% gpu-mem 4.0G host-ram 31%
+5878.9s 50 ep 2 it 1200/2171 loss 0.3332 16.4 img/s | data-wait 0% gpu-mem 4.0G host-ram 32%
+6071.6s 51 ep 2 it 1400/2171 loss 0.3330 16.4 img/s | data-wait 0% gpu-mem 4.0G host-ram 32%
+6264.3s 52 ep 2 it 1600/2171 loss 0.3307 16.5 img/s | data-wait 0% gpu-mem 4.0G host-ram 33%
+6456.9s 53 ep 2 it 1800/2171 loss 0.3292 16.5 img/s | data-wait 0% gpu-mem 4.0G host-ram 34%
+6649.9s 54 ep 2 it 2000/2171 loss 0.3286 16.5 img/s | data-wait 0% gpu-mem 4.0G host-ram 34%
+6995.8s 55 {'epoch': 2, 'loss': 0.3283542194697561, 'val_qwk': np.float64(0.7624638756553024), 'min': 116.03349788188935}
+7000.2s 56 ep 3 it 0/2171 loss 0.2239 3.7 img/s | data-wait 57% gpu-mem 4.0G host-ram 35%
+7193.4s 57 ep 3 it 200/2171 loss 0.3206 16.3 img/s | data-wait 1% gpu-mem 4.0G host-ram 36%
+7386.1s 58 ep 3 it 400/2171 loss 0.3178 16.4 img/s | data-wait 1% gpu-mem 4.0G host-ram 37%
+7579.1s 59 ep 3 it 600/2171 loss 0.3173 16.5 img/s | data-wait 0% gpu-mem 4.0G host-ram 37%
+7773.3s 60 ep 3 it 800/2171 loss 0.3159 16.5 img/s | data-wait 0% gpu-mem 4.0G host-ram 38%
+7966.7s 61 ep 3 it 1000/2171 loss 0.3150 16.5 img/s | data-wait 0% gpu-mem 4.0G host-ram 39%
+8160.8s 62 ep 3 it 1200/2171 loss 0.3137 16.5 img/s | data-wait 0% gpu-mem 4.0G host-ram 39%
+8354.3s 63 ep 3 it 1400/2171 loss 0.3135 16.5 img/s | data-wait 0% gpu-mem 4.0G host-ram 40%
+8547.1s 64 ep 3 it 1600/2171 loss 0.3141 16.5 img/s | data-wait 0% gpu-mem 4.0G host-ram 41%
+8740.2s 65 ep 3 it 1800/2171 loss 0.3133 16.5 img/s | data-wait 0% gpu-mem 4.0G host-ram 41%
+8933.7s 66 ep 3 it 2000/2171 loss 0.3134 16.5 img/s | data-wait 0% gpu-mem 4.0G host-ram 42%
+9283.0s 67 {'epoch': 3, 'loss': 0.3134411178196372, 'val_qwk': np.float64(0.7664461376808834), 'min': 154.1530925631523}
+9287.4s 68 ep 4 it 0/2171 loss 0.3039 3.7 img/s | data-wait 59% gpu-mem 4.0G host-ram 43%
+9481.7s 69 ep 4 it 200/2171 loss 0.3048 16.2 img/s | data-wait 1% gpu-mem 4.0G host-ram 44%
+9673.7s 70 ep 4 it 400/2171 loss 0.3054 16.4 img/s | data-wait 1% gpu-mem 4.0G host-ram 44%
+9865.4s 71 ep 4 it 600/2171 loss 0.3060 16.5 img/s | data-wait 1% gpu-mem 4.0G host-ram 45%
+10057.8s 72 ep 4 it 800/2171 loss 0.3058 16.5 img/s | data-wait 0% gpu-mem 4.0G host-ram 46%
+10249.9s 73 ep 4 it 1000/2171 loss 0.3041 16.6 img/s | data-wait 0% gpu-mem 4.0G host-ram 46%
+10441.1s 74 ep 4 it 1200/2171 loss 0.3033 16.6 img/s | data-wait 0% gpu-mem 4.0G host-ram 47%
+10632.0s 75 ep 4 it 1400/2171 loss 0.3030 16.6 img/s | data-wait 0% gpu-mem 4.0G host-ram 48%
+10823.1s 76 ep 4 it 1600/2171 loss 0.3033 16.6 img/s | data-wait 0% gpu-mem 4.0G host-ram 48%
+11014.9s 77 ep 4 it 1800/2171 loss 0.3034 16.6 img/s | data-wait 0% gpu-mem 4.0G host-ram 49%
+11207.1s 78 ep 4 it 2000/2171 loss 0.3032 16.6 img/s | data-wait 0% gpu-mem 4.0G host-ram 50%
+11553.1s 79 {'epoch': 4, 'loss': 0.30386785619245704, 'val_qwk': np.float64(0.761166956612925), 'min': 191.98897635936737}
+11557.7s 80 ep 5 it 0/2171 loss 0.3451 3.5 img/s | data-wait 56% gpu-mem 4.0G host-ram 50%
+11749.8s 81 ep 5 it 200/2171 loss 0.3042 16.4 img/s | data-wait 1% gpu-mem 4.0G host-ram 51%
+11942.6s 82 ep 5 it 400/2171 loss 0.2999 16.5 img/s | data-wait 1% gpu-mem 4.0G host-ram 52%
+12136.1s 83 ep 5 it 600/2171 loss 0.2984 16.5 img/s | data-wait 1% gpu-mem 4.0G host-ram 52%
+12328.8s 84 ep 5 it 800/2171 loss 0.2991 16.5 img/s | data-wait 0% gpu-mem 4.0G host-ram 53%
+12521.4s 85 ep 5 it 1000/2171 loss 0.2970 16.5 img/s | data-wait 0% gpu-mem 4.0G host-ram 54%
+12713.1s 86 ep 5 it 1200/2171 loss 0.2961 16.6 img/s | data-wait 0% gpu-mem 4.0G host-ram 54%
+12904.1s 87 ep 5 it 1400/2171 loss 0.2963 16.6 img/s | data-wait 0% gpu-mem 4.0G host-ram 55%
+13096.8s 88 ep 5 it 1600/2171 loss 0.2968 16.6 img/s | data-wait 0% gpu-mem 4.0G host-ram 56%
+13289.8s 89 ep 5 it 1800/2171 loss 0.2958 16.6 img/s | data-wait 0% gpu-mem 4.0G host-ram 56%
+13482.8s 90 ep 5 it 2000/2171 loss 0.2954 16.6 img/s | data-wait 0% gpu-mem 4.0G host-ram 57%
+13831.2s 91 {'epoch': 5, 'loss': 0.2954693300789372, 'val_qwk': np.float64(0.7781354646970817), 'min': 229.95690819422404}
+13836.1s 92 ep 6 it 0/2171 loss 0.2908 3.5 img/s | data-wait 63% gpu-mem 4.0G host-ram 58%
+14027.8s 93 ep 6 it 200/2171 loss 0.2990 16.4 img/s | data-wait 2% gpu-mem 4.0G host-ram 59%
+14216.6s 94 ep 6 it 400/2171 loss 0.2968 16.7 img/s | data-wait 1% gpu-mem 4.0G host-ram 59%
+14405.2s 95 ep 6 it 600/2171 loss 0.2957 16.8 img/s | data-wait 1% gpu-mem 4.0G host-ram 60%
+14591.5s 96 ep 6 it 800/2171 loss 0.2939 16.9 img/s | data-wait 0% gpu-mem 4.0G host-ram 61%
+14778.8s 97 ep 6 it 1000/2171 loss 0.2921 16.9 img/s | data-wait 0% gpu-mem 4.0G host-ram 61%
+14966.2s 98 ep 6 it 1200/2171 loss 0.2926 16.9 img/s | data-wait 0% gpu-mem 4.0G host-ram 62%
+15153.2s 99 ep 6 it 1400/2171 loss 0.2934 17.0 img/s | data-wait 0% gpu-mem 4.0G host-ram 63%
+15340.4s 100 ep 6 it 1600/2171 loss 0.2934 17.0 img/s | data-wait 0% gpu-mem 4.0G host-ram 64%
+15527.6s 101 ep 6 it 1800/2171 loss 0.2931 17.0 img/s | data-wait 0% gpu-mem 4.0G host-ram 64%
+15714.5s 102 ep 6 it 2000/2171 loss 0.2925 17.0 img/s | data-wait 0% gpu-mem 4.0G host-ram 65%
+16050.6s 103 {'epoch': 6, 'loss': 0.29200620610886374, 'val_qwk': np.float64(0.8113086664133403), 'min': 266.9475658416748}
+16055.5s 104 ep 7 it 0/2171 loss 0.2773 3.4 img/s | data-wait 61% gpu-mem 4.0G host-ram 66%
+16242.6s 105 ep 7 it 200/2171 loss 0.2827 16.8 img/s | data-wait 2% gpu-mem 4.0G host-ram 66%
+16428.4s 106 ep 7 it 400/2171 loss 0.2860 17.0 img/s | data-wait 1% gpu-mem 4.0G host-ram 67%
+16613.6s 107 ep 7 it 600/2171 loss 0.2876 17.1 img/s | data-wait 1% gpu-mem 4.0G host-ram 68%
+16797.8s 108 ep 7 it 800/2171 loss 0.2880 17.2 img/s | data-wait 0% gpu-mem 4.0G host-ram 68%
+16983.9s 109 ep 7 it 1000/2171 loss 0.2884 17.2 img/s | data-wait 0% gpu-mem 4.0G host-ram 69%
+17167.4s 110 ep 7 it 1200/2171 loss 0.2888 17.2 img/s | data-wait 0% gpu-mem 4.0G host-ram 70%
+17351.1s 111 ep 7 it 1400/2171 loss 0.2898 17.2 img/s | data-wait 0% gpu-mem 4.0G host-ram 70%
+17535.2s 112 ep 7 it 1600/2171 loss 0.2891 17.3 img/s | data-wait 0% gpu-mem 4.0G host-ram 71%
+17726.2s 113 ep 7 it 1800/2171 loss 0.2895 17.2 img/s | data-wait 0% gpu-mem 4.0G host-ram 72%
+17916.6s 114 ep 7 it 2000/2171 loss 0.2900 17.2 img/s | data-wait 0% gpu-mem 4.0G host-ram 72%
+18257.0s 115 {'epoch': 7, 'loss': 0.28974783238673857, 'val_qwk': np.float64(0.7884760561937332), 'min': 303.71930175622305}
+18261.1s 116 ep 8 it 0/2171 loss 0.3162 3.8 img/s | data-wait 58% gpu-mem 4.0G host-ram 73%
+18450.5s 117 ep 8 it 200/2171 loss 0.2883 16.6 img/s | data-wait 1% gpu-mem 4.0G host-ram 74%
+18637.3s 118 ep 8 it 400/2171 loss 0.2863 16.9 img/s | data-wait 1% gpu-mem 4.0G host-ram 75%
+18831.7s 119 ep 8 it 600/2171 loss 0.2865 16.7 img/s | data-wait 1% gpu-mem 4.0G host-ram 75%
+19026.8s 120 ep 8 it 800/2171 loss 0.2856 16.6 img/s | data-wait 0% gpu-mem 4.0G host-ram 76%
+19224.9s 121 ep 8 it 1000/2171 loss 0.2859 16.5 img/s | data-wait 0% gpu-mem 4.0G host-ram 77%
+19421.8s 122 ep 8 it 1200/2171 loss 0.2857 16.5 img/s | data-wait 0% gpu-mem 4.0G host-ram 77%
+19617.7s 123 ep 8 it 1400/2171 loss 0.2853 16.5 img/s | data-wait 0% gpu-mem 4.0G host-ram 78%
+19814.1s 124 ep 8 it 1600/2171 loss 0.2849 16.5 img/s | data-wait 0% gpu-mem 4.0G host-ram 78%
+20010.1s 125 ep 8 it 1800/2171 loss 0.2854 16.4 img/s | data-wait 0% gpu-mem 4.0G host-ram 79%
+20206.5s 126 ep 8 it 2000/2171 loss 0.2851 16.4 img/s | data-wait 0% gpu-mem 4.0G host-ram 80%
+20553.6s 127 {'epoch': 8, 'loss': 0.2849428045247239, 'val_qwk': np.float64(0.8047888944391046), 'min': 341.99769262075426}
+20557.8s 128 ep 9 it 0/2171 loss 0.2627 3.9 img/s | data-wait 60% gpu-mem 4.0G host-ram 81%
+20753.9s 129 ep 9 it 200/2171 loss 0.2827 16.1 img/s | data-wait 1% gpu-mem 4.0G host-ram 81%
+20950.9s 130 ep 9 it 400/2171 loss 0.2839 16.1 img/s | data-wait 1% gpu-mem 4.0G host-ram 82%
+21145.6s 131 ep 9 it 600/2171 loss 0.2837 16.2 img/s | data-wait 0% gpu-mem 4.0G host-ram 83%
+21340.6s 132 ep 9 it 800/2171 loss 0.2854 16.3 img/s | data-wait 0% gpu-mem 4.0G host-ram 83%
+21537.7s 133 ep 9 it 1000/2171 loss 0.2851 16.3 img/s | data-wait 0% gpu-mem 4.0G host-ram 84%
+21734.5s 134 ep 9 it 1200/2171 loss 0.2863 16.3 img/s | data-wait 0% gpu-mem 4.0G host-ram 85%
+21932.4s 135 ep 9 it 1400/2171 loss 0.2857 16.3 img/s | data-wait 0% gpu-mem 4.0G host-ram 85%
+22128.4s 136 ep 9 it 1600/2171 loss 0.2857 16.3 img/s | data-wait 0% gpu-mem 4.0G host-ram 86%
+22324.3s 137 ep 9 it 1800/2171 loss 0.2858 16.3 img/s | data-wait 0% gpu-mem 4.0G host-ram 87%
+22521.7s 138 ep 9 it 2000/2171 loss 0.2862 16.3 img/s | data-wait 0% gpu-mem 4.0G host-ram 88%
+22882.7s 139 {'epoch': 9, 'loss': 0.28633951750948156, 'val_qwk': np.float64(0.7971717963526282), 'min': 380.8158450802167}
+23291.3s 140 thresholds [0.811 1.472 2.281 3.269] uncertainty cut-off 0.23 screening cut-off 0.611
+23295.1s 141 
+23295.1s 142 ===== val  (n=3861) =====
+23295.1s 143 qwk                  0.834  [0.817, 0.849]
+23295.1s 144 acc                  0.792  [0.780, 0.805]
+23295.1s 145 rdr_sens             0.737  [0.706, 0.765]
+23295.1s 146 rdr_spec             0.974  [0.969, 0.980]
+23295.1s 147 rdr_auc              0.947  [0.937, 0.957]
+23295.1s 148 rdr_sens@screen      0.900  [0.879, 0.922]
+23295.1s 149 rdr_spec@screen      0.850  [0.836, 0.862]
+23295.1s 150 vtdr_sens            0.773  [0.720, 0.819]
+23295.1s 151 vtdr_spec            0.959  [0.952, 0.964]
+23295.1s 152 vtdr_auc             0.964  [0.950, 0.974]
+23295.1s 153 patient_rdr_sens@screen 0.923
+23295.1s 154 patient_rdr_spec@screen 0.780
+23295.1s 155 uncertain_frac       0.050
+23295.1s 156 qwk_confident_only   0.851
+23295.1s 157 precision    recall  f1-score   support
+23295.1s 158 
+23295.1s 159 0 none      0.910     0.941     0.925      2739
+23295.1s 160 1 mild      0.231     0.278     0.252       270
+23295.1s 161 2 moderate      0.706     0.429     0.533       623
+23295.1s 162 3 severe      0.347     0.687     0.461       134
+23295.1s 163 4 PDR      0.774     0.505     0.611        95
+23295.1s 164 
+23295.1s 165 accuracy                          0.792      3861
+23295.1s 166 macro avg      0.594     0.568     0.557      3861
+23295.1s 167 weighted avg      0.807     0.792     0.791      3861
+23295.1s 168 
+23295.1s 169 true vs predicted grade distribution (bias check):
+23295.1s 170 0    1    2    3   4
+23295.1s 171 true  2739  270  623  134  95
+23295.1s 172 pred  2831  325  378  265  62
+23295.5s 173 val QWK on aptos: 0.893  (n=351)
+23295.5s 174 val QWK on eyepacs: 0.819  (n=3510)
+25779.4s 175 Kernel died while waiting for execute reply.
+25779.6s 176 Traceback (most recent call last):
+25779.6s 177 File "/usr/local/lib/python3.13/dist-packages/nbclient/client.py", line 949, in async_execute_cell
+25779.6s 178 exec_reply = await self.task_poll_for_reply
+25779.6s 179 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+25779.6s 180 File "/usr/local/lib/python3.13/dist-packages/nbclient/client.py", line 730, in _async_poll_for_reply
+25779.6s 181 msg = await ensure_async(self.kc.shell_channel.get_msg(timeout=new_timeout))
+25779.6s 182 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+25779.6s 183 File "/usr/local/lib/python3.13/dist-packages/nbclient/util.py", line 96, in ensure_async
+25779.6s 184 result = await obj
+25779.6s 185 ^^^^^^^^^
+25779.6s 186 File "/usr/local/lib/python3.13/dist-packages/jupyter_client/channels.py", line 224, in get_msg
+25779.6s 187 ready = await self.socket.poll(timeout)
+25779.6s 188 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+25779.6s 189 asyncio.exceptions.CancelledError
+25779.6s 190 
+25779.6s 191 During handling of the above exception, another exception occurred:
+25779.6s 192 
+25779.6s 193 Traceback (most recent call last):
+25779.6s 194 File "<string>", line 1, in <module>
+25779.6s 195 import sys;import papermill as pm;pm.execute_notebook("__notebook__.ipynb","__notebook__.ipynb",progress_bar=False,log_output=True,stdout_file=sys.stdout,stderr_file=sys.stderr,allow_errors=False,timeout=43200)
+25779.6s 196 ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+25779.6s 197 File "/usr/local/lib/python3.13/dist-packages/papermill/execute.py", line 116, in execute_notebook
+25779.6s 198 nb = papermill_engines.execute_notebook_with_engine(
+25779.6s 199 engine_name,
+25779.6s 200 ...<9 lines>...
+25779.6s 201 **engine_kwargs,
+25779.6s 202 )
+25779.6s 203 File "/usr/local/lib/python3.13/dist-packages/papermill/engines.py", line 49, in execute_notebook_with_engine
+25779.6s 204 return self.get_engine(engine_name).execute_notebook(nb, kernel_name, **kwargs)
+25779.6s 205 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+25779.6s 206 File "/usr/local/lib/python3.13/dist-packages/papermill/engines.py", line 371, in execute_notebook
+25779.6s 207 cls.execute_managed_notebook(nb_man, kernel_name, log_output=log_output, **kwargs)
+25779.6s 208 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+25779.6s 209 File "/usr/local/lib/python3.13/dist-packages/papermill/engines.py", line 443, in execute_managed_notebook
+25779.6s 210 return PapermillNotebookClient(nb_man, **final_kwargs).execute()
+25779.6s 211 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+25779.6s 212 File "/usr/local/lib/python3.13/dist-packages/papermill/clientwrap.py", line 45, in execute
+25779.6s 213 self.papermill_execute_cells()
+25779.6s 214 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+25779.6s 215 File "/usr/local/lib/python3.13/dist-packages/papermill/clientwrap.py", line 72, in papermill_execute_cells
+25779.6s 216 self.execute_cell(cell, index)
+25779.6s 217 ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+25779.6s 218 File "/usr/local/lib/python3.13/dist-packages/nbclient/util.py", line 84, in wrapped
+25779.6s 219 return just_run(coro(*args, **kwargs))
+25779.6s 220 File "/usr/local/lib/python3.13/dist-packages/nbclient/util.py", line 62, in just_run
+25779.6s 221 return loop.run_until_complete(coro)
+25779.6s 222 ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+25779.6s 223 File "/usr/lib/python3.13/asyncio/base_events.py", line 726, in run_until_complete
+25779.6s 224 return future.result()
+25779.6s 225 ~~~~~~~~~~~~~^^
+25779.6s 226 File "/usr/local/lib/python3.13/dist-packages/nbclient/client.py", line 953, in async_execute_cell
+25779.6s 227 raise DeadKernelError("Kernel died")
+25779.6s 228 nbclient.exceptions.DeadKernelError: Kernel died
+25784.4s 229 /usr/local/lib/python3.13/dist-packages/mistune.py:435: SyntaxWarning: invalid escape sequence '\|'
+25784.4s 230 cells[i][c] = re.sub('\\\\\|', '|', cell)
+25784.8s 231 /usr/local/lib/python3.13/dist-packages/nbconvert/filters/filter_links.py:36: SyntaxWarning: invalid escape sequence '\_'
+25784.8s 232 text = re.sub(r'_', '\_', text) # Escape underscores in display text
+25786.9s 233 [NbConvertApp] Converting notebook __notebook__.ipynb to notebook
+25787.0s 234 [NbConvertApp] Writing 98779 bytes to __notebook__.ipynb
+25789.4s 235 [NbConvertApp] Converting notebook __notebook__.ipynb to html
+25790.4s 236 [NbConvertApp] Support files will be in __results___files/
+25790.4s 237 [NbConvertApp] Making directory __results___files
+25790.4s 238 [NbConvertApp] Writing 402836 bytes to __results__.html
