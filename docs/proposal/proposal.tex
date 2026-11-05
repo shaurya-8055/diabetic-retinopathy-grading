@@ -1,0 +1,110 @@
+\documentclass[10pt]{article}
+\usepackage[a4paper,margin=0.6in]{geometry}
+\usepackage[compact,small]{titlesec}
+\titlespacing*{\section}{0pt}{5pt}{2pt}
+\usepackage{booktabs,tabularx,enumitem,hyperref,xcolor}
+\usepackage[T1]{fontenc}
+\usepackage{mathptmx}
+\hypersetup{colorlinks,linkcolor=black,urlcolor=blue!50!black,citecolor=black}
+\setlist{nosep,leftmargin=1.2em}
+\setlength{\parskip}{3pt}\setlength{\parindent}{0pt}
+\input{../meta.tex}
+\pagestyle{empty}
+
+\begin{document}
+\begin{center}
+{\Large\bfseries Project Proposal: Diabetic Retinopathy Severity Grading for Mass Screening}\\[3pt]
+\course\ \textperiodcentered\ Department of Computer Science and Engineering, \institute\\[2pt]
+\small Abhinav Shukla (230101002), Amit Kumar (230101021), Shaurya Shakya (230101119), Nitin Gupta (230101083),
+Utkarsh Kumar (230101147), Amit Usara (230101023), Somil Gupta (230101135), Krishna Kumar Gupta (230101068),
+Saurabh Mishra (230101116), Shreyansh Anand (230101128)
+\end{center}
+
+\section*{1. Problem statement}
+Diabetic retinopathy (DR) affects about 22\% of people with diabetes and is projected to affect 160.5 million adults by 2045~\cite{teo}.
+It is a leading preventable cause of blindness, but early stages are symptom-free and screening camps have far more fundus photographs than graders.
+We will build a \textbf{screening tool} that grades a retinal fundus photograph into the five International Clinical DR (ICDR) levels~\cite{icdr}:
+0 none, 1 mild, 2 moderate, 3 severe non-proliferative and 4 proliferative DR.
+Since the levels are ordered, we treat grading as \emph{ordinal} classification and evaluate with the quadratic weighted kappa (QWK).
+For triage we also report referable DR (grade~$\ge$2) sensitivity and specificity.
+\textbf{Objectives:}
+(i) train and compare a CNN and a Vision Transformer (ViT) for ordinal grading;
+(ii) handle the severe class imbalance and label noise of public DR data;
+(iii) use test-time augmentation (TTA);
+(iv) report per-grade confusion matrices, validate on an external dataset never used for training or tuning, and document clinical limitations.
+\textbf{Constraint:} everything must run within the Kaggle free tier (2$\times$T4 GPUs, 12\,h sessions, about 30 GPU-hours/week, 20\,GB output).
+
+\section*{2. Datasets (all verified downloadable)}
+We checked each source through the Kaggle API (file listings and sizes) and then mounted and streamed it inside a Kaggle notebook.
+The two competitions require joining and accepting their rules; late joining is allowed.
+\begin{center}\footnotesize
+\begin{tabularx}{\linewidth}{@{}l l X r@{}}
+\toprule
+Dataset & Kaggle source & Content (verified) & Role\\
+\midrule
+EyePACS 2015~\cite{eyepacs} & comp.\ \texttt{diabetic-retinopathy-detection} & 35,126 labelled train + 53,576 test images in $\sim$82\,GB split zips; US primary care, mixed cameras & train / internal test\\
+EyePACS test labels & \texttt{benjaminwarner/resized-2015-2019-...} & \texttt{testLabels15.csv} (1.2\,MB), labels released after the competition, with the Public/Private split & internal test\\
+APTOS 2019 & comp.\ \texttt{aptos2019-blindness-detection} & 3,662 labelled images, Aravind Eye Hospital (India) & train\\
+Messidor-2~\cite{messidor} & \texttt{xyaustin/messidor2} & 1,748 images (2.5\,GB PNG), France, Topcon camera & external test\\
+Messidor-2 grades~\cite{krause} & \texttt{google-brain/messidor2-dr-grades} & adjudicated ICDR grades from 3 retina specialists (CSV, 48\,KB) & external labels\\
+\bottomrule
+\end{tabularx}
+\end{center}
+The original EyePACS archive does not fit the 20\,GB working disk. We will therefore stream images directly out of the split zip parts, crop the fundus disc, and store 768\,px JPEG shards.
+We keep 768\,px rather than smaller sizes because microaneurysms span only a few pixels.
+
+\section*{3. Related work}
+\begin{enumerate}
+\item \textbf{Gulshan et al., JAMA 2016}~\cite{gulshan}: Inception-v3 trained on 128k images, each graded 3--7 times. It reached an AUC of 0.99 for referable DR on EyePACS-1 and Messidor-2, which established deep learning for DR screening.
+\item \textbf{Graham, Kaggle 2015}~\cite{graham}: the winning solution (QWK 0.849). It introduced the ``subtract local average colour'' preprocessing, used high input resolution and combined information from both eyes.
+\item \textbf{Krause et al., Ophthalmology 2018}~\cite{krause}: showed that single-grader labels are noisy (inter-grader $\kappa$ 0.40--0.65). Adjudicated reference grades and higher-resolution inputs raised the AUC from 0.934 to 0.986. Their adjudicated Messidor-2 grades are our external reference.
+\item \textbf{Huang et al., 2021}~\cite{huang}: a controlled ablation of ResNet-50 on the EyePACS Private test. Resolution, regression-style objectives and paired-eye fusion matter most, reaching QWK 0.863. It is our main baseline.
+\item \textbf{Dosovitskiy et al., ICLR 2021}~\cite{vit}: the Vision Transformer, which tokenises 16$\times$16 patches. Its cost grows quadratically with resolution, which conflicts with the tiny DR lesions. We fine-tune it at 512\,px by interpolating its position embeddings.
+\end{enumerate}
+
+\section*{4. Proposed method and evaluation}
+\begin{itemize}
+\item \textbf{Preprocessing:} fundus cropping, Ben Graham enhancement~\cite{graham}, and perceptual-hash deduplication of APTOS, dropping duplicates whose grades conflict.
+\item \textbf{Splits:} a patient-grouped, stratified train/val split, so that both eyes of a patient stay on the same side.
+\item \textbf{Models:} ViT-B/16 and ResNet-50 at 512\,px with a cumulative ordinal head (CORAL-style~\cite{coral}).
+\item \textbf{Training:} square-root class-rebalanced sampling against the 73\% grade-0 imbalance, and ordinal label smoothing against label noise.
+\item \textbf{Inference:} 4-view TTA, whose spread doubles as an uncertainty flag. Grade cut-offs are tuned on val for QWK, plus a screening cut-off at 90\% referable-DR sensitivity.
+\item \textbf{Improvements:} ensembling and paired-eye fusion.
+\item \textbf{Evaluation:} QWK, per-grade confusion matrices, referable-DR AUC/sensitivity/specificity with bootstrap 95\% CIs. We evaluate on the EyePACS test set (including the Private split, for comparison with the literature) and on Messidor-2 as the external set.
+\end{itemize}
+
+\section*{5. Work split and timeline}
+\begin{center}\footnotesize
+\begin{tabularx}{\linewidth}{@{}l l X@{}}
+\toprule
+Member & Roll no. & Responsibility\\
+\midrule
+Shaurya Shakya & 230101119 & Project coordination; Kaggle pipeline integration and multi-GPU training\\
+Abhinav Shukla & 230101002 & Dataset access, licences and download verification; Kaggle input setup\\
+Amit Kumar & 230101021 & Preprocessing: streaming split-zip reader, fundus cropping, sharded storage\\
+Nitin Gupta & 230101083 & EDA, label-noise analysis, APTOS deduplication, patient-grouped splits\\
+Utkarsh Kumar & 230101147 & ViT-B/16 model, ordinal head and loss\\
+Amit Usara & 230101023 & ResNet-50 CNN baseline; class-imbalance sampling\\
+Somil Gupta & 230101135 & Metrics: QWK and threshold optimisation, bootstrap CIs, confusion matrices\\
+Krishna Kumar Gupta & 230101068 & External validation on Messidor-2; TTA and uncertainty analysis\\
+Saurabh Mishra & 230101116 & Ensembling, paired-eye fusion, screening tool and operating point\\
+Shreyansh Anand & 230101128 & Literature review, clinical-limitations analysis, report and slides\\
+\bottomrule
+\end{tabularx}
+\end{center}
+\textbf{Milestones:} proposal $\rightarrow$ data ready (cleaned and split data, EDA, baseline metrics) $\rightarrow$ mid-term review (first full model against the baseline) $\rightarrow$ improved models (ablations, CNN vs.\ ViT) $\rightarrow$ final report and code repository.
+
+\footnotesize
+\begin{thebibliography}{9}\setlength{\itemsep}{0pt}
+\bibitem{teo} Z.~L. Teo \emph{et al.}, ``Global prevalence of diabetic retinopathy and projection of burden through 2045,'' \emph{Ophthalmology}, 128(11):1580--1591, 2021.
+\bibitem{icdr} C.~P. Wilkinson \emph{et al.}, ``Proposed international clinical diabetic retinopathy and diabetic macular edema disease severity scales,'' \emph{Ophthalmology}, 110(9):1677--1682, 2003.
+\bibitem{eyepacs} J.~Cuadros and G.~Bresnick, ``EyePACS: an adaptable telemedicine system for diabetic retinopathy screening,'' \emph{J. Diabetes Sci. Technol.}, 3(3):509--516, 2009.
+\bibitem{messidor} E.~Decenci\`ere \emph{et al.}, ``Feedback on a publicly distributed image database: the Messidor database,'' \emph{Image Anal. Stereol.}, 33(3):231--234, 2014.
+\bibitem{gulshan} V.~Gulshan \emph{et al.}, ``Development and validation of a deep learning algorithm for detection of diabetic retinopathy in retinal fundus photographs,'' \emph{JAMA}, 316(22):2402--2410, 2016.
+\bibitem{graham} B.~Graham, ``Kaggle diabetic retinopathy detection competition report,'' University of Warwick, 2015.
+\bibitem{krause} J.~Krause \emph{et al.}, ``Grader variability and the importance of reference standards for evaluating machine learning models for diabetic retinopathy,'' \emph{Ophthalmology}, 125(8):1264--1272, 2018.
+\bibitem{huang} Y.~Huang \emph{et al.}, ``Identifying the key components in ResNet-50 for diabetic retinopathy grading from fundus images: a systematic investigation,'' arXiv:2110.14160, 2021.
+\bibitem{vit} A.~Dosovitskiy \emph{et al.}, ``An image is worth 16x16 words: Transformers for image recognition at scale,'' in \emph{ICLR}, 2021.
+\bibitem{coral} W.~Cao, V.~Mirjalili, and S.~Raschka, ``Rank consistent ordinal regression for neural networks with application to age estimation,'' \emph{Pattern Recognit. Lett.}, 140:325--331, 2020.
+\end{thebibliography}
+\end{document}
