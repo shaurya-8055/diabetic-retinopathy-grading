@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+# duplicate of Executed-Files-v3 (same notebooks, minus the 03 run)
+Executed-Files-v2/
+# LaTeX build by-products
+*.aux
+*.log
+*.out
+*.synctex.gz
+!Executed-*/*.log

@@ -1,0 +1,11 @@
+# Kaggle's image already has these; needed only for local runs (smoke_test.py, make_figures.py)
+torch
+timm
+opencv-python-headless
+numpy
+pandas
+scikit-learn
+scipy
+matplotlib
+pillow
+psutil
