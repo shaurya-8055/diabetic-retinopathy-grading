@@ -5,6 +5,8 @@ It compares an ordinal ViT-B/16 with a ResNet-50 and ensembles them with paired-
 It reports per-grade confusion matrices, validates externally on Messidor-2, and ships a `screen()` tool with a clinical-limitations section.
 Everything runs on the **Kaggle free tier** (2×T4, 12 h sessions, 20 GB output).
 
+Github Url = [`https://github.com/shaurya-8055/diabetic-retinopathy-grading`](https://github.com/shaurya-8055/diabetic-retinopathy-grading)
+
 **Deliverables:**
 - 2-page proposal: [`docs/proposal/proposal.pdf`](docs/proposal/proposal.pdf)
 - IEEE report (9 pages): [`docs/report/report.pdf`](docs/report/report.pdf)
